@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#064e3b"/>
+      <stop offset="100%" stop-color="#022c22"/>
+    </linearGradient>
+    <linearGradient id="emeraldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#34d399"/>
+      <stop offset="100%" stop-color="#10b981"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Background Base -->
+  <rect width="512" height="512" rx="120" fill="url(#bgGrad)"/>
+  
+  <!-- Outer Accent Border -->
+  <rect x="16" y="16" width="480" height="480" rx="104" fill="none" stroke="#10b981" stroke-width="10" stroke-opacity="0.3"/>
+
+  <!-- Radar Scan Arcs -->
+  <path d="M 240 100 A 140 140 0 0 1 380 240" fill="none" stroke="#10b981" stroke-width="14" stroke-linecap="round" stroke-dasharray="20 16" opacity="0.7"/>
+
+  <!-- ScamSniff Main Magnifying Detection Icon -->
+  <g>
+    <!-- Outer Lens Ring (Emerald) -->
+    <circle cx="216" cy="216" r="110" fill="none" stroke="url(#emeraldGrad)" stroke-width="36"/>
+    
+    <!-- Inner Lens Fill -->
+    <circle cx="216" cy="216" r="90" fill="#047857" fill-opacity="0.4"/>
+
+    <!-- Concentric Sniff Radar Waves -->
+    <path d="M 166 216 A 50 50 0 0 1 216 166" fill="none" stroke="#ffffff" stroke-width="18" stroke-linecap="round"/>
+    <path d="M 140 216 A 76 76 0 0 1 216 140" fill="none" stroke="#34d399" stroke-width="14" stroke-linecap="round" opacity="0.9"/>
+
+    <!-- Central Target Detection Point -->
+    <circle cx="216" cy="216" r="18" fill="#ffffff"/>
+
+    <!-- Handle (Emerald Base + White Core) -->
+    <path d="M 298 298 L 404 404" fill="none" stroke="url(#emeraldGrad)" stroke-width="44" stroke-linecap="round"/>
+    <path d="M 298 298 L 404 404" fill="none" stroke="#ffffff" stroke-width="20" stroke-linecap="round"/>
+  </g>
+</svg>
