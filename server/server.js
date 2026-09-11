@@ -14,12 +14,8 @@ const errorHandler = require('./middleware/errorHandler');
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-// CORS configuration
-const clientUrl = process.env.CLIENT_URL || 'http://localhost:5173';
-app.use(cors({
-  origin: [clientUrl, 'http://localhost:3000', 'http://127.0.0.1:5173'],
-  credentials: true
-}));
+// Enable CORS for development and cross-origin requests
+app.use(cors());
 
 // Body parsing middleware
 app.use(express.json({ limit: '5mb' }));
@@ -27,6 +23,25 @@ app.use(express.urlencoded({ extended: true, limit: '5mb' }));
 
 // Mount API routes
 app.use('/api', apiRoutes);
+
+// Path to compiled React production build
+const clientDistPath = path.join(__dirname, '../client/dist');
+
+// Serve static assets from React build directory
+app.use(express.static(clientDistPath));
+
+// Fallback: Serve React SPA index.html for all non-API GET routes (dashboard, history, learn, categories)
+app.get('*', (req, res, next) => {
+  if (req.path.startsWith('/api')) {
+    return next();
+  }
+  const indexPath = path.join(clientDistPath, 'index.html');
+  res.sendFile(indexPath, (err) => {
+    if (err) {
+      res.status(404).send('ScamSniff Frontend build not found. Please build the client project first.');
+    }
+  });
+});
 
 // Error Handler Middleware
 app.use(errorHandler);
@@ -36,13 +51,13 @@ async function startServer() {
   await connectDB();
   await seedInitialData();
 
-  app.listen(PORT, () => {
+  app.listen(PORT, '0.0.0.0', () => {
     console.log(`
 ======================================================
   🐽 ScamSniff Server is running on port ${PORT}
-  Environment: ${process.env.NODE_ENV || 'development'}
+  Environment: ${process.env.NODE_ENV || 'production'}
   LLM Integration: ${process.env.LLM_API_KEY ? 'Active API' : 'Rule-based Offline Fallback'}
-  API Base: http://localhost:${PORT}/api
+  Single Web Service Mode: Active (Serving Frontend + API)
 ======================================================
     `);
   });
