@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # ScamSniff — Full-Stack AI Scam Detection & Risk Assessment Platform
 
 > **Tagline:** *"Sniff Out Scams Before They Sniff You."*  
@@ -212,3 +213,6 @@ ScamSniff is designed for automated risk assessment. It follows strict guideline
 ## 🎓 License & Credits
 
 Developed for CSE College Project presentation and general internet safety awareness.
+=======
+# Scamsniff
+>>>>>>> fe3d2f22573ded40d31e4ae6dd3a83ce996750f9
