@@ -17,9 +17,9 @@ const PORT = process.env.PORT || 5000;
 // Enable CORS for development and cross-origin requests
 app.use(cors());
 
-// Body parsing middleware
-app.use(express.json({ limit: '5mb' }));
-app.use(express.urlencoded({ extended: true, limit: '5mb' }));
+// Body parsing middleware (higher limit for base64 image uploads)
+app.use(express.json({ limit: '15mb' }));
+app.use(express.urlencoded({ extended: true, limit: '15mb' }));
 
 // Mount API routes
 app.use('/api', apiRoutes);
@@ -30,7 +30,7 @@ const clientDistPath = path.join(__dirname, '../client/dist');
 // Serve static assets from React build directory
 app.use(express.static(clientDistPath));
 
-// Fallback: Serve React SPA index.html for all non-API GET routes (dashboard, history, learn, categories)
+// Fallback: Serve React SPA index.html for all non-API GET routes (dashboard, consultations, learn, crops)
 app.get('*', (req, res, next) => {
   if (req.path.startsWith('/api')) {
     return next();
@@ -38,7 +38,7 @@ app.get('*', (req, res, next) => {
   const indexPath = path.join(clientDistPath, 'index.html');
   res.sendFile(indexPath, (err) => {
     if (err) {
-      res.status(404).send('ScamSniff Frontend build not found. Please build the client project first.');
+      res.status(404).send('AgriSphere Frontend build not found. Please build the client project first.');
     }
   });
 });
@@ -54,15 +54,18 @@ async function startServer() {
   app.listen(PORT, '0.0.0.0', () => {
     console.log(`
 ======================================================
-  🐽 ScamSniff Server is running on port ${PORT}
+  🌱 AgriSphere Server is running on port ${PORT}
   Environment: ${process.env.NODE_ENV || 'production'}
-  LLM Integration: ${process.env.LLM_API_KEY ? 'Active API' : 'Rule-based Offline Fallback'}
+  LLM Integration: ${process.env.LLM_API_KEY ? 'Active API' : 'Rule-based Offline Agriculture Fallback'}
   Single Web Service Mode: Active (Serving Frontend + API)
 ======================================================
     `);
   });
 }
 
-startServer();
+if (require.main === module) {
+  startServer();
+}
 
 module.exports = app;
+

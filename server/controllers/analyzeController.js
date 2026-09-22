@@ -1,26 +1,27 @@
-const { analyzeScam } = require('../services/scamAnalyzer');
-const Scan = require('../models/Scan');
+const { analyzeAgriQuery } = require('../services/agriAnalyzer');
+const Consultation = require('../models/Consultation');
 const { getStatus, memoryStore } = require('../config/db');
 
 exports.analyzeContent = async (req, res, next) => {
   try {
-    const { content, mode = 'AUTO' } = req.body;
+    const { content, queryText, image, mode = 'AUTO', language = 'en' } = req.body;
+    const textToAnalyze = queryText || content || '';
 
-    if (!content || typeof content !== 'string' || content.trim() === '') {
+    if (!textToAnalyze.trim() && !image) {
       return res.status(400).json({
         success: false,
-        error: 'Please provide non-empty content to analyze.'
+        error: 'Please provide an agricultural query or upload a crop photo to analyze.'
       });
     }
 
-    if (content.length > 10000) {
+    if (textToAnalyze.length > 10000) {
       return res.status(400).json({
         success: false,
-        error: 'Content length exceeds the 10,000 character maximum limit.'
+        error: 'Query length exceeds maximum limit.'
       });
     }
 
-    const { isUnrelated, message, sanitizedContent, result } = await analyzeScam(content, mode);
+    const { isUnrelated, message, result, hasImage } = await analyzeAgriQuery(textToAnalyze, image, mode, language);
 
     if (isUnrelated) {
       return res.json({
@@ -30,46 +31,45 @@ exports.analyzeContent = async (req, res, next) => {
       });
     }
 
-    // Save to Database / MemoryStore
-    let savedScanId = `scan-${Date.now()}`;
-    const scanData = {
-      mode: result.mode,
+    // Save to DB / Memory Store
+    let savedId = `agri-${Date.now()}`;
+    const consultationData = {
       category: result.category,
-      riskLevel: result.riskLevel,
-      riskScore: result.riskScore,
+      crop: result.crop,
+      queryText: textToAnalyze,
+      hasImage,
+      imageUrl: hasImage ? 'image-attached' : '',
+      language,
+      assessment: result.assessment,
       confidence: result.confidence,
-      redFlags: result.redFlags,
-      confirmedIndicators: result.confirmedIndicators,
-      suspiciousIndicators: result.suspiciousIndicators,
-      unknownInformation: result.unknownInformation,
-      explanation: result.explanation,
+      symptoms: result.symptoms,
+      causes: result.possibleCauses,
       recommendedActions: result.recommendedActions,
-      sanitizedContent,
+      prevention: result.prevention,
       createdAt: new Date()
     };
 
     const { isConnected } = getStatus();
     if (isConnected) {
       try {
-        const newScan = await Scan.create(scanData);
-        savedScanId = newScan._id.toString();
+        const newDoc = await Consultation.create(consultationData);
+        savedId = newDoc._id.toString();
       } catch (dbErr) {
-        console.warn('⚠️ Could not save scan to MongoDB:', dbErr.message);
+        console.warn('⚠️ Could not save consultation to MongoDB:', dbErr.message);
       }
     }
 
     // Save into memory store
-    const memEntry = { _id: savedScanId, ...scanData };
+    const memEntry = { _id: savedId, ...consultationData };
     memoryStore.scans.unshift(memEntry);
 
     return res.json({
       success: true,
       isUnrelated: false,
-      scanId: savedScanId,
+      consultationId: savedId,
       result: {
-        scanId: savedScanId,
-        ...result,
-        sanitizedContent
+        consultationId: savedId,
+        ...result
       }
     });
 

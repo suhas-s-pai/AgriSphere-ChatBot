@@ -1,30 +1,32 @@
-const Scan = require('../models/Scan');
+const Consultation = require('../models/Consultation');
 const { getStatus, memoryStore } = require('../config/db');
 
 exports.getDashboardStats = async (req, res, next) => {
   try {
     const { isConnected } = getStatus();
 
-    let allScans = [];
+    let allConsultations = [];
     if (isConnected) {
-      allScans = await Scan.find({}).sort({ createdAt: -1 });
+      allConsultations = await Consultation.find({}).sort({ createdAt: -1 });
     } else {
-      allScans = [...memoryStore.scans];
+      allConsultations = [...memoryStore.scans];
     }
 
-    const totalScans = allScans.length;
-    let highRisk = 0;
-    let suspicious = 0;
-    let lowRisk = 0;
+    const totalConsultations = allConsultations.length;
+    let plantHealthCases = 0;
+    let irrigationGuidance = 0;
+    let fertilizerSoil = 0;
+    let pestManagement = 0;
     const categoryCounts = {};
 
-    for (const s of allScans) {
-      if (s.riskLevel === 'HIGH') highRisk++;
-      else if (s.riskLevel === 'SUSPICIOUS') suspicious++;
-      else lowRisk++;
-
-      const cat = s.category || 'Other Suspicious Activity';
+    for (const c of allConsultations) {
+      const cat = c.category || 'General Agriculture';
       categoryCounts[cat] = (categoryCounts[cat] || 0) + 1;
+
+      if (cat.includes('Disease') || cat.includes('Health')) plantHealthCases++;
+      else if (cat.includes('Irrigation')) irrigationGuidance++;
+      else if (cat.includes('Fertilizer') || cat.includes('Soil')) fertilizerSoil++;
+      else if (cat.includes('Pest')) pestManagement++;
     }
 
     const categories = Object.keys(categoryCounts).map(cat => ({
@@ -35,12 +37,13 @@ exports.getDashboardStats = async (req, res, next) => {
     return res.json({
       success: true,
       stats: {
-        totalScans,
-        highRisk,
-        suspicious,
-        lowRisk,
+        totalConsultations,
+        plantHealthCases,
+        irrigationGuidance,
+        fertilizerSoil,
+        pestManagement,
         categories,
-        recentScans: allScans.slice(0, 5)
+        recentConsultations: allConsultations.slice(0, 5)
       }
     });
 

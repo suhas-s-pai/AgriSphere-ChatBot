@@ -3,17 +3,18 @@ const { getStatus, memoryStore } = require('../config/db');
 
 exports.submitFeedback = async (req, res, next) => {
   try {
-    const { scanId, isHelpful, comment = '' } = req.body;
+    const { consultationId, scanId, isHelpful, comment = '' } = req.body;
+    const targetId = consultationId || scanId;
 
-    if (!scanId || typeof isHelpful !== 'boolean') {
+    if (!targetId || typeof isHelpful !== 'boolean') {
       return res.status(400).json({
         success: false,
-        error: 'scanId and boolean isHelpful flag are required.'
+        error: 'consultationId and boolean isHelpful flag are required.'
       });
     }
 
     const feedbackData = {
-      scanId,
+      consultationId: targetId,
       isHelpful,
       comment,
       createdAt: new Date()
@@ -32,7 +33,7 @@ exports.submitFeedback = async (req, res, next) => {
 
     return res.json({
       success: true,
-      message: 'Thank you for helping ScamSniff improve!'
+      message: 'Thank you for helping AgriSphere improve agricultural guidance!'
     });
   } catch (err) {
     next(err);

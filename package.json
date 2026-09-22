@@ -1,7 +1,7 @@
 {
-  "name": "scamsniff-root",
-  "version": "1.0.0",
-  "description": "ScamSniff - Full-Stack AI Scam Detection & Risk Assessment Platform",
+  "name": "agrisphere-root",
+  "version": "2.0.0",
+  "description": "AgriSphere - Smart Farming. Better Decisions. AI Agriculture Platform",
   "private": true,
   "scripts": {
     "install:all": "npm install && npm --prefix server install && npm --prefix client install",
@@ -11,7 +11,7 @@
     "dev:server": "npm --prefix server run dev",
     "dev:client": "npm --prefix client run dev",
     "dev": "concurrently \"npm run dev:server\" \"npm run dev:client\"",
-    "test:server": "node server/tests/analyzer.test.js"
+    "test:server": "node server/tests/agrisphere.test.js"
   },
   "devDependencies": {
     "concurrently": "^8.2.2"

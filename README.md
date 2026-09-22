@@ -1,30 +1,29 @@
-<<<<<<< HEAD
-# ScamSniff — Full-Stack AI Scam Detection & Risk Assessment Platform
+# AgriSphere — Intelligent Agriculture Assistant Platform
 
-> **Tagline:** *"Sniff Out Scams Before They Sniff You."*  
-> **Main Message:** *"Don't trust it blindly. Let ScamSniff check it first."*
+> **Tagline:** *"Smart Farming. Better Decisions."*
 
 ---
 
-## 🛡️ Project Overview
+## 🌱 Overview
 
-**ScamSniff** is a specialized, production-quality full-stack AI-powered scam detection and risk assessment platform. Designed specifically for college students, general internet users, online shoppers, and job seekers, ScamSniff analyzes suspicious messages, emails, URLs, job/internship offers, payment requests, and social media interactions to flag potential fraud before damage occurs.
+**AgriSphere** is a modern, full-stack, AI-powered agricultural decision-support platform designed to help farmers, agricultural extension workers, and students make intelligent farming choices. 
 
-Unlike generic AI chat assistants, ScamSniff is built exclusively as a **cybersecurity risk scanner**. It features hybrid analysis combining an offline rule engine, link security inspection, sensitive data redaction, and LLM JSON analysis.
+AgriSphere provides guidance on crop selection, disease diagnosis, pest management, soil nutrition, irrigation schedules, weather-related decisions, and market trends. It features **strict domain guardrails** to ensure all assistance remains 100% agriculture-focused, along with **multilingual support**, **voice input**, and **camera/image upload** capabilities for crop health evaluation.
 
 ---
 
 ## ✨ Key Features
 
-- **Hybrid Detection Pipeline**: Integrates deterministic pattern rules, URL analysis, and LLM structured analysis.
-- **Sensitive Data Redaction**: Automatically redacts OTPs, PINs, credit card numbers, and passwords before processing or storage.
-- **URL & Domain Security Engine**: Inspects HTTPS usage, IP hostnames, URL shorteners, excessive hyphens, lookalike brand domains, and high-risk TLDs (`.xyz`, `.top`, `.online`).
-- **Offline Fallback Engine**: Operates seamlessly without an external LLM API key or MongoDB instance—ideal for zero-dependency presentations and offline environments.
-- **Interactive Risk Dashboard**: Real-time metrics on total scans, risk classifications (HIGH, SUSPICIOUS, LOW), and threat category bar charts powered by Recharts.
-- **Scan Audit History**: Allows searching, filtering by risk level or category, and reviewing detailed scan red flags.
-- **Cybersecurity Education Hub**: Practical guides on Phishing, Fake Job Scams, Domain Security, OTP protection, and UPI payment traps.
-- **Dark/Light Theme System**: Modern cybersecurity aesthetic with persistent theme preferences.
-- **Responsive Mobile-First Design**: Optimized UX for mobile phones, tablets, and desktop displays.
+- **🌾 Agriculture-Only AI Assistant**: Enforces strict domain guardrails. Non-agricultural questions (e.g. general coding, trivia) are politely redirected to maintain product focus.
+- **📷 Camera & Image Upload**: Allows farmers to take photos or upload crop leaf images for plant health and disease analysis.
+- **🎤 Multilingual Voice Input**: Speech-to-text integration using browser Speech Recognition across 8 supported Indian and global languages.
+- **🌐 Multilingual Support**: 8 supported languages including English, Kannada (ಕನ್ನಡ), Hindi (हिंदी), Telugu (తెలుగు), Tamil (தமிழ்), Malayalam (മലയാളം), Marathi (मराठी), and Bengali (বাংলা).
+- **📊 AgriSphere Dashboard**: Analytics overview of crop inquiries, disease cases, irrigation advice, soil nutrition, and category breakdown charts powered by Recharts.
+- **🌾 Crop Catalog**: Interactive catalog covering 12 major crops (Rice, Wheat, Maize, Tomato, Potato, Onion, Coconut, Banana, Sugarcane, Pulses, Vegetables, Fruits) with ideal soil, climate, care tips, and common pest details.
+- **📋 Consultation History**: Full audit trail of past farming questions and diagnoses with search, filtering, and detailed inspection modal drawers.
+- **📚 Agriculture Knowledge Hub**: Guides covering Soil Preparation, Seed Selection, Sowing, Irrigation, Fertilizers, IPM Pest Control, Disease Control, and Organic Farming.
+- **🔌 Offline Fallback Engine**: 100% functional without an external LLM API key or MongoDB server, guaranteeing zero-dependency demo reliability.
+- **⚡ Single Render Web Service Architecture**: Frontend React production build and Express API served from ONE unified Web Service endpoint.
 
 ---
 
@@ -32,159 +31,21 @@ Unlike generic AI chat assistants, ScamSniff is built exclusively as a **cyberse
 
 ### Frontend
 - **Framework**: React.js 18 + Vite
-- **Styling**: Tailwind CSS (with custom Dark/Light cybersecurity theme)
+- **Styling**: Tailwind CSS (Natural Forest & Earthy Cream Palette)
 - **Routing**: React Router v6
 - **Charts**: Recharts
 - **Icons**: Lucide React
+- **Voice Recognition**: Web Speech API (`SpeechRecognition` / `webkitSpeechRecognition`)
 
 ### Backend
 - **Runtime**: Node.js & Express.js
-- **Database**: MongoDB & Mongoose (with built-in memory store fallback)
+- **Database**: MongoDB & Mongoose (with built-in Memory Store fallback)
 - **Security & Utilities**: Express Rate Limit, CORS, Axios, Dotenv
 
-### AI & Rule Engine
-- **LLM Integration**: OpenAI-compatible chat completion API (`LLM_API_KEY`, `LLM_MODEL`, `LLM_BASE_URL`)
-- **Fallback Analyzer**: Rule-based scoring engine for offline reliability
-
----
-
-## 📁 Repository Structure
-
-```text
-ScamSniff/
-│
-├── package.json               # Monorepo scripts (npm run dev, npm run install:all)
-├── .env.example               # Root environment variable template
-├── README.md                  # Complete project documentation
-│
-├── server/                    # Node.js + Express Backend API
-│   ├── config/
-│   │   └── db.js              # MongoDB connection & Memory Store fallback
-│   ├── controllers/
-│   │   ├── analyzeController.js   # POST /api/analyze handler
-│   │   ├── historyController.js   # GET /api/history handlers
-│   │   ├── dashboardController.js # GET /api/dashboard stats handler
-│   │   └── feedbackController.js  # POST /api/feedback handler
-│   ├── middleware/
-│   │   ├── rateLimiter.js     # IP rate limiting
-│   │   └── errorHandler.js    # Global error handler
-│   ├── models/
-│   │   ├── Scan.js            # Mongoose Scan schema
-│   │   └── Feedback.js        # Mongoose Feedback schema
-│   ├── routes/
-│   │   └── api.js             # Express API routes definition
-│   ├── services/
-│   │   ├── redactor.js        # Sensitive credential redactor
-│   │   ├── ruleEngine.js      # Pattern matching for scam indicators
-│   │   ├── urlAnalyzer.js     # URL & domain security inspection
-│   │   ├── llmService.js      # LLM API caller & JSON validator
-│   │   └── scamAnalyzer.js    # Master analyzer orchestrator
-│   ├── utils/
-│   │   └── seedData.js        # Initial seed demo scans
-│   ├── tests/
-│   │   └── analyzer.test.js   # Automated unit test suite
-│   ├── package.json
-│   └── server.js              # Express app entry point
-│
-└── client/                    # React + Vite Frontend
-    ├── src/
-    │   ├── components/        # Navbar, Footer, QuickActions, DemoPresets, ChatInterface, ResultCard, GaugeChart, RedFlagsList, Disclaimer
-    │   ├── context/           # ThemeContext (Dark/Light mode)
-    │   ├── pages/             # Home, Dashboard, History, Learn, Categories
-    │   ├── services/          # Frontend API HTTP client
-    │   ├── utils/             # Formatters & badge helpers
-    │   ├── App.jsx            # Router setup
-    │   └── main.jsx           # React DOM entry
-    ├── index.html
-    ├── package.json
-    ├── tailwind.config.js
-    └── vite.config.js
-```
-
----
-
-## 🚀 Quick Start & Installation
-
-### Prerequisites
-- **Node.js**: v18.0.0 or higher
-- **npm**: v9.0.0 or higher
-
-### 1. Clone & Install Dependencies
-
-Run the root workspace install script to install dependencies for root, server, and client:
-
-```bash
-npm run install:all
-```
-
-Alternatively, install individually:
-
-```bash
-# Install root
-npm install
-
-# Install server
-cd server && npm install
-
-# Install client
-cd ../client && npm install
-```
-
-### 2. Environment Configuration
-
-Create a `.env` file inside the `server/` folder or root directory based on `.env.example`:
-
-```env
-PORT=5000
-MONGODB_URI=mongodb://localhost:27017/scamsniff
-
-# LLM Configuration (Optional - Leave blank to use built-in offline rule engine)
-LLM_API_KEY=
-LLM_MODEL=gpt-3.5-turbo
-LLM_BASE_URL=https://api.openai.com/v1
-
-CLIENT_URL=http://localhost:5173
-NODE_ENV=development
-```
-
----
-
-## 🏃 Running the Application
-
-### Option A: Run Both Client & Server Concurrently (Recommended)
-
-From the root directory:
-
-```bash
-npm run dev
-```
-
-- **Frontend**: `http://localhost:5173`
-- **Backend API**: `http://localhost:5000/api`
-
-### Option B: Run Services Separately
-
-**Start Server:**
-```bash
-cd server
-npm run dev
-```
-
-**Start Client:**
-```bash
-cd client
-npm run dev
-```
-
----
-
-## 🧪 Automated Testing
-
-Run the backend analyzer test suite to verify sensitive data redaction, rule indicators, URL security checks, prize scams, internship fee scams, and safe content classification:
-
-```bash
-npm run test:server
-```
+### AI & Domain Services
+- **Domain Guardrail Classifier**: Enforces agriculture-only query scope
+- **LLM Integration**: OpenAI/Gemini Vision compatible API (`LLM_API_KEY`, `LLM_MODEL`, `LLM_BASE_URL`)
+- **Offline Rule Fallback**: Rule-based agricultural decision engine
 
 ---
 
@@ -192,27 +53,52 @@ npm run test:server
 
 | Method | Endpoint | Description |
 | :--- | :--- | :--- |
-| `GET` | `/api/health` | Health check & service status |
-| `POST` | `/api/analyze` | Submit content for scam risk analysis |
-| `GET` | `/api/history` | Retrieve previous scan audit logs |
-| `GET` | `/api/history/:id` | Retrieve single scan result by ID |
-| `GET` | `/api/dashboard` | Aggregated threat metrics & category counts |
-| `POST` | `/api/feedback` | Submit user helpfulness feedback (thumbs up/down) |
+| `GET` | `/api/health` | Service health status & database connectivity |
+| `POST` | `/api/analyze` | Process farming text queries or image attachments |
+| `GET` | `/api/history` | Retrieve consultation audit logs (supports filtering) |
+| `GET` | `/api/history/:id` | Retrieve detailed consultation entry by ID |
+| `GET` | `/api/dashboard` | Aggregated farming metrics & category counts |
+| `POST` | `/api/feedback` | Submit helpfulness feedback (thumbs up/down) |
 
 ---
 
-## 🔒 Safety & Disclaimer
+## 🏃 Running AgriSphere Locally
 
-ScamSniff is designed for automated risk assessment. It follows strict guidelines:
-- Never outputs false absolutes (e.g., *"100% safe"* or *"definitely fraudulent"*).
-- Displays clear disclaimers that low risk scores do not guarantee absolute safety.
-- Automatically redacts passwords, OTPs, and card numbers to protect user privacy.
+### 1. Concurrent Development Mode
+```bash
+npm run dev
+```
+- **Frontend**: `http://localhost:5173`
+- **Backend API**: `http://localhost:5000/api`
+
+### 2. Single Web Service Production Preview Mode
+```bash
+npm run build
+npm start
+```
+- **Unified Application**: `http://localhost:5000`
+
+### 3. Automated Test Suite
+```bash
+npm run test:server
+```
 
 ---
 
-## 🎓 License & Credits
+## 🚀 Render Deployment Settings
 
-Developed for CSE College Project presentation and general internet safety awareness.
-=======
-# Scamsniff
->>>>>>> fe3d2f22573ded40d31e4ae6dd3a83ce996750f9
+To deploy on Render as a Single Web Service:
+
+- **Service Type**: Web Service
+- **Environment**: Node
+- **Root Directory**: `server`
+- **Build Command**: `npm run build`
+- **Start Command**: `npm start`
+
+Express will automatically compile the React frontend into `client/dist`, serve static assets, handle SPA routes (`/dashboard`, `/crops`, `/consultations`, `/learn`), and process `/api/*` requests from a single URL!
+
+---
+
+## 📜 Disclaimer
+
+AgriSphere provides automated agricultural guidance. For severe plant disease outbreaks or regulated chemical pesticide usage, consult your local agricultural extension officer or Krishi Vigyan Kendra (KVK).

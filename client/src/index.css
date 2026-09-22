@@ -3,26 +3,24 @@
 @tailwind utilities;
 
 @layer utilities {
-  .sniff-pulse {
-    animation: sniffPulse 1.8s infinite cubic-bezier(0.4, 0, 0.6, 1);
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
   }
 }
 
-@keyframes sniffPulse {
-  0%, 100% {
-    opacity: 1;
-    transform: scale(1);
-  }
-  50% {
-    opacity: 0.6;
-    transform: scale(1.05);
-  }
+body {
+  background-color: #F6F3E8;
+  color: #14532D;
 }
 
 /* Custom Scrollbars */
 ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 6px;
+  height: 6px;
 }
 
 ::-webkit-scrollbar-track {
@@ -30,14 +28,14 @@
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #94a3b8;
+  background: #1F7A4D;
   border-radius: 4px;
 }
 
 .dark ::-webkit-scrollbar-thumb {
-  background: #334155;
+  background: #14532D;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #64748b;
+  background: #4CAF50;
 }

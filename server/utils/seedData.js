@@ -1,160 +1,111 @@
 /**
- * Initial Seed Data Generator for ScamSniff
- * Provides realistic demo scans and populates memory store / MongoDB if empty.
+ * Initial Seed Data Generator for AgriSphere
+ * Populates realistic demo agricultural consultations for Dashboard and History logs.
  */
 
-const Scan = require('../models/Scan');
+const Consultation = require('../models/Consultation');
 const { getStatus, memoryStore } = require('../config/db');
 
-const SEED_SCANS = [
+const SEED_CONSULTATIONS = [
   {
-    mode: 'PAYMENT',
-    category: 'Prize/Lottery Scam',
-    riskLevel: 'HIGH',
-    riskScore: 95,
-    confidence: 0.94,
-    sanitizedContent: "Congratulations! You have been selected for a ₹50,000 government reward. Pay ₹299 processing fee immediately.",
-    redFlags: [
-      {
-        title: 'Advance payment demanded',
-        description: 'The message requires you to pay ₹299 before receiving ₹50,000.',
-        severity: 'HIGH'
-      },
-      {
-        title: 'Unrealistic reward promised',
-        description: 'Large unearned financial reward created to entice immediate action.',
-        severity: 'HIGH'
-      },
-      {
-        title: 'Urgency created',
-        description: 'Demands immediate payment to prevent user from verifying.',
-        severity: 'HIGH'
-      }
+    category: 'Plant Disease',
+    crop: 'Tomato',
+    queryText: 'My tomato leaves are turning yellow with dark spots. What disease is this?',
+    hasImage: true,
+    language: 'en',
+    assessment: 'Possible Early Blight (Alternaria solani)',
+    confidence: 88,
+    symptoms: [
+      'Concentric dark spots on lower leaves',
+      'Yellow halos surrounding leaf spots',
+      'Premature leaf drop'
     ],
-    confirmedIndicators: ['Upfront payment requested for prize', 'Government authority reference'],
-    suspiciousIndicators: ['Pressure to act immediately'],
-    unknownInformation: ['Official authorization certificate unverified'],
-    explanation: 'This message combines a large unexpected financial reward, an advance processing fee request, and urgency. Legitimate government rewards never ask for upfront payment fees.',
+    causes: [
+      'Fungal infection favored by warm temperature and high humidity',
+      'Splashing rainwater carrying soil pathogens'
+    ],
     recommendedActions: [
-      "Do not send the ₹299 fee.",
-      "Do not click links or call numbers in the message.",
-      "Verify official government schemes on official .gov.in websites only.",
-      "Report the sender number to national cyber crime authorities."
+      'Prune and destroy infected lower leaves immediately',
+      'Avoid overhead watering; water at plant base',
+      'Apply organic neem spray or copper-based bio-fungicide'
     ],
-    createdAt: new Date(Date.now() - 3600000 * 2) // 2 hours ago
+    prevention: [
+      'Rotate crops annually away from nightshade family',
+      'Mulch soil surface to prevent soil splash onto foliage'
+    ],
+    createdAt: new Date(Date.now() - 3600000 * 3)
   },
   {
-    mode: 'INTERNSHIP',
-    category: 'Job/Internship Scam',
-    riskLevel: 'HIGH',
-    riskScore: 92,
-    confidence: 0.91,
-    sanitizedContent: "Your internship application has been shortlisted. Pay ₹1,500 registration fee to confirm your position.",
-    redFlags: [
-      {
-        title: 'Mandatory upfront registration fee',
-        description: 'Legitimate companies pay interns; they never charge applicants a registration fee.',
-        severity: 'HIGH'
-      },
-      {
-        title: 'Irregular hiring process',
-        description: 'Offer extended without formal technical interview or verifiable employer domain.',
-        severity: 'HIGH'
-      }
-    ],
-    confirmedIndicators: ['Upfront money demanded for job offer confirmation'],
-    suspiciousIndicators: ['Recruiter using generic messaging app'],
-    unknownInformation: ['Company incorporation details unverified'],
-    explanation: 'Demanding money to confirm an internship or issue an offer letter is a classic fake internship scam. Real companies do not charge registration or training fees.',
+    category: 'Irrigation',
+    crop: 'Rice / Paddy',
+    queryText: 'When is the critical irrigation period for paddy rice?',
+    hasImage: false,
+    language: 'en',
+    assessment: 'Critical Water Management Schedule for Rice',
+    confidence: 94,
+    symptoms: ['Water scheduling inquiry'],
+    causes: ['High crop water sensitivity during flowering stage'],
     recommendedActions: [
-      "Refuse to pay the ₹1,500 registration fee.",
-      "Check the company's official website careers page.",
-      "Look up the recruiter's official email address and LinkedIn profile."
+      'Maintain 2–5 cm water depth during tillering and panicle initiation',
+      'Ensure field is not flooded 10 days prior to harvest',
+      'Practice Alternate Wetting and Drying (AWD) to save 20% water'
     ],
-    createdAt: new Date(Date.now() - 3600000 * 6)
+    prevention: ['Level fields properly for uniform water distribution'],
+    createdAt: new Date(Date.now() - 3600000 * 12)
   },
   {
-    mode: 'LINK',
-    category: 'Phishing',
-    riskLevel: 'HIGH',
-    riskScore: 90,
-    confidence: 0.92,
-    sanitizedContent: "Your bank KYC has expired. Click this link immediately to avoid account suspension: http://secure-bank-kyc.top/login",
-    redFlags: [
-      {
-        title: 'Fake account suspension threat',
-        description: 'Creates panic by threatening account suspension.',
-        severity: 'HIGH'
-      },
-      {
-        title: 'Insecure HTTP link',
-        description: 'The link uses HTTP instead of encrypted HTTPS.',
-        severity: 'HIGH'
-      },
-      {
-        title: 'Suspicious TLD (.top)',
-        description: 'Uses a high-risk cheap domain extension (.top) instead of official bank domain.',
-        severity: 'HIGH'
-      }
-    ],
-    confirmedIndicators: ['Lookalike bank domain', 'Account suspension coercion'],
-    suspiciousIndicators: ['Non-HTTPS link structure'],
-    unknownInformation: ['Domain owner registration details obscured'],
-    explanation: 'This is a phishing link designed to steal your online banking login details. Banks will never send SMS links with high-risk TLDs like .top to update KYC.',
+    category: 'Fertilizers',
+    crop: 'Maize',
+    queryText: 'What is the recommended NPK fertilizer ratio for maize crop?',
+    hasImage: false,
+    language: 'en',
+    assessment: 'Nutrient & Fertilizer Schedule for Maize',
+    confidence: 90,
+    symptoms: ['Nutrient inquiry'],
+    causes: ['High nitrogen requirement for vegetative growth'],
     recommendedActions: [
-      "Do NOT click the link.",
-      "Do NOT enter your banking login ID or password.",
-      "Access your bank account only through the official mobile app or official website bookmark."
+      'Apply NPK in 120:60:60 kg/hectare balanced ratio',
+      'Apply full Phosphorus & Potassium dose during basal sowing',
+      'Split Nitrogen into 3 equal doses: Basal, Knee-high, and Tasseling stages'
     ],
-    createdAt: new Date(Date.now() - 3600000 * 18)
+    prevention: ['Soil test every 2 years to avoid nutrient lockup'],
+    createdAt: new Date(Date.now() - 3600000 * 26)
   },
   {
-    mode: 'PAYMENT',
-    category: 'UPI/Payment Scam',
-    riskLevel: 'HIGH',
-    riskScore: 96,
-    confidence: 0.95,
-    sanitizedContent: "Someone is asking me for an [REDACTED_OTP] to process my refund.",
-    redFlags: [
-      {
-        title: 'OTP request for receiving funds',
-        description: 'You NEVER need an OTP or PIN to RECEIVE money or refunds via UPI or bank transfer.',
-        severity: 'HIGH'
-      },
-      {
-        title: 'Account takeover risk',
-        description: 'Sharing an OTP allows scammers to authorize transactions or take over your bank account.',
-        severity: 'HIGH'
-      }
-    ],
-    confirmedIndicators: ['OTP requested under guise of refund'],
-    suspiciousIndicators: ['Unsolicited support agent calling'],
-    unknownInformation: ['Caller employee credentials unverified'],
-    explanation: 'OTP is an authentication secret used only to DEDUCT money or log in. Anyone asking for an OTP to give you a refund is attempting a scam.',
+    category: 'Pest Management',
+    crop: 'Onion',
+    queryText: 'How to control thrips infestation on onion leaves naturally?',
+    hasImage: false,
+    language: 'en',
+    assessment: 'Integrated Pest Management for Onion Thrips',
+    confidence: 86,
+    symptoms: ['Silvery patches and curling on onion leaves'],
+    causes: ['Thrips tabaci feeding on sap during hot dry weather'],
     recommendedActions: [
-      "NEVER share the OTP with anyone under any circumstances.",
-      "Hang up immediately.",
-      "Check your official app directly for true refund status."
+      'Install blue sticky traps (25 traps per hectare)',
+      'Spray Neem oil (10,000 ppm) at 3ml per liter of water',
+      'Use sprinkler irrigation to wash thrips off leaves'
     ],
-    createdAt: new Date(Date.now() - 3600000 * 28)
+    prevention: ['Avoid planting onions near alfalfa or wheat fields'],
+    createdAt: new Date(Date.now() - 3600000 * 48)
   },
   {
-    mode: 'MESSAGE',
-    category: 'Other Suspicious Activity',
-    riskLevel: 'LOW',
-    riskScore: 12,
-    confidence: 0.88,
-    sanitizedContent: "Hi Team, please find attached the slide deck for our project presentation scheduled for tomorrow at 10 AM. Regards, Alex.",
-    redFlags: [],
-    confirmedIndicators: [],
-    suspiciousIndicators: [],
-    unknownInformation: ['External email domain unverified'],
-    explanation: 'No obvious scam indicators, urgency language, payment requests, or suspicious links were detected in this message.',
+    category: 'Crop Selection',
+    crop: 'Pulses',
+    queryText: 'Which short-duration pulse crop is suitable for dryland sandy soil?',
+    hasImage: false,
+    language: 'en',
+    assessment: 'Dryland Pulse Selection & Sowing Advice',
+    confidence: 92,
+    symptoms: ['Crop selection for low rainfall zone'],
+    causes: ['Low soil moisture retention capability'],
     recommendedActions: [
-      "Verify sender email address if you do not know Alex.",
-      "Exercise standard file attachment caution."
+      'Select Green Gram (Mung Bean) or Black Gram (Vigna mungo)',
+      'Treat seeds with Rhizobium culture before sowing',
+      'Ensure light shallow sowing at 3–4 cm depth'
     ],
-    createdAt: new Date(Date.now() - 3600000 * 40)
+    prevention: ['Incorporate organic compost to enhance water retention'],
+    createdAt: new Date(Date.now() - 3600000 * 72)
   }
 ];
 
@@ -163,10 +114,10 @@ async function seedInitialData() {
 
   if (isConnected) {
     try {
-      const count = await Scan.countDocuments();
+      const count = await Consultation.countDocuments();
       if (count === 0) {
-        await Scan.insertMany(SEED_SCANS);
-        console.log(`✅ Seeded ${SEED_SCANS.length} demo scans into MongoDB.`);
+        await Consultation.insertMany(SEED_CONSULTATIONS);
+        console.log(`✅ Seeded ${SEED_CONSULTATIONS.length} demo agricultural consultations into MongoDB.`);
       }
     } catch (err) {
       console.warn('⚠️ Seeding MongoDB failed:', err.message);
@@ -175,15 +126,15 @@ async function seedInitialData() {
 
   // Populate memory store regardless for fast offline fallback
   if (memoryStore.scans.length === 0) {
-    memoryStore.scans = SEED_SCANS.map((s, idx) => ({
-      _id: `seed-scan-${idx + 1}`,
+    memoryStore.scans = SEED_CONSULTATIONS.map((s, idx) => ({
+      _id: `seed-agri-${idx + 1}`,
       ...s
     }));
-    console.log(`✅ Seeded memory store with ${memoryStore.scans.length} demo scans.`);
+    console.log(`✅ Seeded memory store with ${memoryStore.scans.length} demo consultations.`);
   }
 }
 
 module.exports = {
-  SEED_SCANS,
+  SEED_CONSULTATIONS,
   seedInitialData
 };

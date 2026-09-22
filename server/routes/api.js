@@ -13,21 +13,21 @@ router.get('/health', (req, res) => {
   const dbStatus = getStatus();
   return res.json({
     status: 'OK',
-    service: 'ScamSniff API Engine',
+    service: 'AgriSphere AI Agriculture Engine',
     timestamp: new Date(),
     database: dbStatus,
     llmConfigured: Boolean(process.env.LLM_API_KEY && process.env.LLM_API_KEY.trim() !== '')
   });
 });
 
-// Analyze Content
+// Analyze Content (Agriculture Q&A + Image Analysis)
 router.post('/analyze', analyzeLimiter, analyzeContent);
 
-// History Routes
+// History / Consultation Audit Routes
 router.get('/history', getHistory);
 router.get('/history/:id', getScanById);
 
-// Dashboard Route
+// Dashboard Analytics Route
 router.get('/dashboard', getDashboardStats);
 
 // Feedback Route

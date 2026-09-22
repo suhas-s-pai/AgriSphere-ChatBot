@@ -1,7 +1,7 @@
 const mongoose = require('mongoose');
 
 const FeedbackSchema = new mongoose.Schema({
-  scanId: {
+  consultationId: {
     type: String,
     required: true
   },

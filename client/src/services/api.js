@@ -7,18 +7,29 @@ const client = axios.create({
   headers: {
     'Content-Type': 'application/json'
   },
-  timeout: 15000
+  timeout: 20000
 });
 
-export const analyzeContent = async (content, mode = 'AUTO') => {
+export const analyzeContent = async (payload) => {
+  const startTime = Date.now();
   try {
-    const res = await client.post('/analyze', { content, mode });
+    // payload can be string or object { queryText, content, image, mode, language }
+    const body = typeof payload === 'string' ? { content: payload } : payload;
+    const res = await client.post('/analyze', body);
+    const elapsed = Date.now() - startTime;
+    if (elapsed < 1000) {
+      await new Promise(resolve => setTimeout(resolve, 1000 - elapsed));
+    }
     return res.data;
   } catch (err) {
+    const elapsed = Date.now() - startTime;
+    if (elapsed < 1000) {
+      await new Promise(resolve => setTimeout(resolve, 1000 - elapsed));
+    }
     if (err.response && err.response.data) {
       return err.response.data;
     }
-    throw new Error(err.message || 'Failed to connect to ScamSniff API service.');
+    throw new Error(err.message || 'Failed to connect to AgriSphere API service.');
   }
 };
 
@@ -28,7 +39,7 @@ export const getHistory = async (params = {}) => {
     return res.data;
   } catch (err) {
     console.warn('History API offline, returning empty result:', err.message);
-    return { success: false, count: 0, scans: [] };
+    return { success: false, count: 0, consultations: [], scans: [] };
   }
 };
 
@@ -37,7 +48,7 @@ export const getScanDetails = async (id) => {
     const res = await client.get(`/history/${id}`);
     return res.data;
   } catch (err) {
-    throw new Error(err.message || 'Unable to fetch scan details.');
+    throw new Error(err.message || 'Unable to fetch consultation details.');
   }
 };
 
@@ -50,20 +61,21 @@ export const getDashboardStats = async () => {
     return {
       success: false,
       stats: {
-        totalScans: 0,
-        highRisk: 0,
-        suspicious: 0,
-        lowRisk: 0,
+        totalConsultations: 0,
+        plantHealthCases: 0,
+        irrigationGuidance: 0,
+        fertilizerSoil: 0,
+        pestManagement: 0,
         categories: [],
-        recentScans: []
+        recentConsultations: []
       }
     };
   }
 };
 
-export const submitFeedback = async (scanId, isHelpful, comment = '') => {
+export const submitFeedback = async (consultationId, isHelpful, comment = '') => {
   try {
-    const res = await client.post('/feedback', { scanId, isHelpful, comment });
+    const res = await client.post('/feedback', { consultationId, scanId: consultationId, isHelpful, comment });
     return res.data;
   } catch (err) {
     return { success: false, error: err.message };
