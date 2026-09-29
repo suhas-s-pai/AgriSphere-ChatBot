@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import {
   Sprout,
@@ -40,6 +40,7 @@ import { useTheme } from '../context/ThemeContext';
 import AgriSphereLogo from '../components/AgriSphereLogo';
 import ChatComposer from '../components/ChatComposer';
 import ChatInterface from '../components/ChatInterface';
+import ErrorBoundary from '../components/ErrorBoundary';
 import FarmCanvas from '../components/FarmCanvas';
 import { analyzeContent, getHistory } from '../services/api';
 
@@ -174,14 +175,17 @@ export default function AssistantWorkspace() {
   const [activeItem, setActiveItem] = useState(null);
   const [tipIndex, setTipIndex] = useState(0);
 
-  // Active query execution state
-  const [submittedText, setSubmittedText] = useState('');
-  const [submittedImage, setSubmittedImage] = useState(null);
+  // Continuous Chat Thread State
+  const [messages, setMessages] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [analysisResult, setAnalysisResult] = useState(null);
-  const [isUnrelated, setIsUnrelated] = useState(false);
-  const [unrelatedMessage, setUnrelatedMessage] = useState('');
   const [error, setError] = useState(null);
+
+  const messagesEndRef = useRef(null);
+
+  // Auto-scroll to bottom of conversation whenever messages or loading state update
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages, isLoading]);
 
   // Keyboard shortcut Ctrl+B to toggle left nav
   useEffect(() => {
@@ -238,20 +242,17 @@ export default function AssistantWorkspace() {
 
   const handleSelectActivity = (item) => {
     setActiveItem(item);
-    setSubmittedText(item.queryText);
-    setSubmittedImage(null);
-    setAnalysisResult(item.result);
-    setIsUnrelated(false);
+    setMessages([
+      { id: `usr-act-${item.id}`, role: 'user', content: item.queryText || item.title },
+      { id: `ast-act-${item.id}`, role: 'assistant', content: item.result?.message || item.result?.assessment, result: item.result }
+    ]);
     setError(null);
     setMobileRightOpen(false);
   };
 
   const handleNewConsultation = () => {
     setActiveItem(null);
-    setSubmittedText('');
-    setSubmittedImage(null);
-    setAnalysisResult(null);
-    setIsUnrelated(false);
+    setMessages([]);
     setError(null);
     setMobileRightOpen(false);
   };
@@ -260,37 +261,76 @@ export default function AssistantWorkspace() {
     if (!queryText && !image) return;
 
     const currentLang = overrideLang || language;
+    const userMsgId = `usr-${Date.now()}`;
+    const userMsg = {
+      id: userMsgId,
+      role: 'user',
+      content: queryText,
+      image,
+      timestamp: new Date()
+    };
 
-    setSubmittedText(queryText);
-    setSubmittedImage(image);
+    setMessages(prev => [...prev, userMsg]);
     setIsLoading(true);
     setError(null);
-    setIsUnrelated(false);
-    setAnalysisResult(null);
 
     try {
+      // Build history payload from recent messages in thread for Gemini API
+      const historyPayload = messages.slice(-6).map(m => ({
+        role: m.role,
+        message: m.content || m.result?.message || m.result?.assessment || ''
+      }));
+
       const data = await analyzeContent({
         queryText,
         image,
-        language: currentLang
+        language: currentLang,
+        history: historyPayload
       });
 
       if (data.success) {
         if (data.isUnrelated) {
-          setIsUnrelated(true);
-          setUnrelatedMessage(data.message || t('chat.guardrailDefault'));
+          const guardrailMsg = {
+            id: `ast-${Date.now()}`,
+            role: 'assistant',
+            isUnrelated: true,
+            unrelatedMessage: data.message || t('chat.guardrailDefault'),
+            timestamp: new Date()
+          };
+          setMessages(prev => [...prev, guardrailMsg]);
         } else {
-          setAnalysisResult(data.result);
+          const aiMessage = data.message || data.result?.message || data.result?.assessment || 'Agricultural guidance completed.';
+          const resObj = {
+            consultationId: data.consultationId || data.result?.consultationId || `agri-${Date.now()}`,
+            message: aiMessage,
+            assessment: aiMessage,
+            title: data.title || data.result?.title || data.crop || data.result?.crop || 'Agricultural Advisory',
+            category: data.category || data.result?.category || 'General Agriculture',
+            crop: data.crop || data.result?.crop || null,
+            recommendedActions: Array.isArray(data.result?.recommendedActions) ? data.result.recommendedActions : (Array.isArray(data.recommendedActions) ? data.recommendedActions : []),
+            warnings: Array.isArray(data.result?.warnings) ? data.result.warnings : (Array.isArray(data.warnings) ? data.warnings : []),
+            followUpQuestion: data.result?.followUpQuestion || data.followUpQuestion || null
+          };
+
+          const astMsg = {
+            id: `ast-${Date.now()}`,
+            role: 'assistant',
+            content: aiMessage,
+            result: resObj,
+            timestamp: new Date()
+          };
+          setMessages(prev => [...prev, astMsg]);
+
           const newItem = {
-            id: `act-dynamic-${Date.now()}`,
-            title: data.result.assessment || queryText.slice(0, 30) + '...',
-            topic: data.result.category || 'Agricultural Inquiry',
+            id: resObj.consultationId,
+            title: resObj.title || queryText.slice(0, 30) + '...',
+            topic: resObj.category,
             time: 'Just now',
             icon: Sprout,
             iconBg: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-400',
             queryText,
-            crop: data.result.crop || 'Crop',
-            result: data.result
+            crop: resObj.crop || 'Crop',
+            result: resObj
           };
           setActivityItems(prev => [newItem, ...prev]);
           setActiveItem(newItem);
@@ -350,7 +390,7 @@ export default function AssistantWorkspace() {
             <Link
               to="/"
               className={`flex items-center gap-3 px-4 py-2.5 rounded-2xl text-xs font-black transition-all ${
-                location.pathname === '/' || location.pathname === '/assistant'
+                location.pathname === '/'
                   ? 'bg-[#14532D] text-white shadow-lg shadow-emerald-900/20'
                   : 'text-slate-700 dark:text-slate-300 hover:bg-[#14532D]/10 hover:text-[#14532D]'
               }`}
@@ -478,11 +518,11 @@ export default function AssistantWorkspace() {
       </aside>
 
       {/* ========================================== */}
-      {/* 2. CENTER IMMERSIVE LANDSCAPE AREA */}
+      {/* 2. CENTER IMMERSIVE LANDSCAPE AREA & CHAT STREAM */}
       {/* ========================================== */}
       <main className="flex-1 flex flex-col h-full min-w-0 relative overflow-hidden transition-all duration-300">
         
-        {/* SINGLE Full-bleed Background Landscape Image */}
+        {/* Full-bleed Background Landscape Image */}
         <div className="absolute inset-0 z-0">
           <img
             src="/AgriSphere.png"
@@ -492,13 +532,11 @@ export default function AssistantWorkspace() {
           <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-black/25 pointer-events-none" />
         </div>
 
-        {/* Floating Top Controls Header Overlay with Comfortable Left/Right Padding */}
-        <div className="relative z-20 flex items-center justify-between px-6 sm:px-10 lg:px-12 py-6 pb-2 shrink-0">
+        {/* Floating Top Controls Header Overlay */}
+        <div className="relative z-20 flex items-center justify-between px-6 sm:px-10 lg:px-12 py-5 pb-2 shrink-0">
           
-          {/* Left Side: Prominent Show/Hide Menu Button & Main Headline (Shifted Right with Comfortable Padding) */}
-          <div className="space-y-3 max-w-2xl pl-2 sm:pl-4">
-            
-            {/* PROMINENT SHOW/HIDE MENU TOGGLE BUTTON */}
+          {/* Left Side: Show/Hide Menu Toggle & Workspace Header */}
+          <div className="space-y-2 max-w-2xl pl-2 sm:pl-4">
             <div className="flex items-center gap-2">
               {/* Mobile Drawer Trigger */}
               <button
@@ -525,51 +563,10 @@ export default function AssistantWorkspace() {
                 <span>{isLeftNavOpen ? 'Hide Menu' : 'Show Menu'}</span>
               </button>
             </div>
-
-            {/* Main Headline & Subtitle */}
-            <div className="pt-1">
-              <h1 className="text-3xl sm:text-4xl lg:text-5xl font-black text-white tracking-tight leading-none drop-shadow-xl">
-                Your Farm.{' '}
-                <span className="text-emerald-400 drop-shadow-md">
-                  Smarter Decisions.
-                </span>
-              </h1>
-              <p className="text-xs sm:text-sm font-bold text-slate-100 mt-2.5 leading-relaxed drop-shadow-md max-w-xl">
-                AI-powered agricultural guidance for healthier crops and higher yields.
-              </p>
-            </div>
-
-            {/* Quick Action Pill Buttons */}
-            <div className="flex items-center gap-2.5 flex-wrap pt-1">
-              <button
-                onClick={() => handleSend({ queryText: 'What is the optimal fertilizer schedule for tomato crops during flowering?', language })}
-                className="flex items-center gap-2 px-4 py-2 rounded-full bg-white/95 dark:bg-[#091A13]/95 backdrop-blur-md border border-slate-200 dark:border-[#1F7A4D]/30 text-slate-900 dark:text-emerald-300 hover:bg-[#14532D] hover:text-white text-xs font-black transition-all shadow-lg active:scale-95 cursor-pointer"
-              >
-                <MessageSquare className="w-4 h-4 text-[#14532D] dark:text-emerald-400" />
-                <span>Ask Question</span>
-              </button>
-
-              <button
-                onClick={() => handleSend({ queryText: 'Please analyze crop disease from uploaded foliage photo.', language })}
-                className="flex items-center gap-2 px-4 py-2 rounded-full bg-white/95 dark:bg-[#091A13]/95 backdrop-blur-md border border-slate-200 dark:border-[#1F7A4D]/30 text-slate-900 dark:text-emerald-300 hover:bg-[#14532D] hover:text-white text-xs font-black transition-all shadow-lg active:scale-95 cursor-pointer"
-              >
-                <Camera className="w-4 h-4 text-[#14532D] dark:text-emerald-400" />
-                <span>Upload Image</span>
-              </button>
-
-              <button
-                onClick={() => handleSend({ queryText: 'Voice consultation inquiry regarding irrigation timing.', language })}
-                className="flex items-center gap-2 px-4 py-2 rounded-full bg-white/95 dark:bg-[#091A13]/95 backdrop-blur-md border border-slate-200 dark:border-[#1F7A4D]/30 text-slate-900 dark:text-emerald-300 hover:bg-[#14532D] hover:text-white text-xs font-black transition-all shadow-lg active:scale-95 cursor-pointer"
-              >
-                <Mic className="w-4 h-4 text-[#14532D] dark:text-emerald-400" />
-                <span>Voice Input</span>
-              </button>
-            </div>
           </div>
 
-          {/* Top Right: PROMINENT Show/Hide Activity Button & Weather Card */}
+          {/* Top Right: Activity Panel Toggle & Weather Card */}
           <div className="flex flex-col items-end gap-3 pr-2 sm:pr-4">
-            
             <div className="flex items-center gap-2.5">
               {/* Desktop Right Activity Panel Hide/Show Toggle */}
               <button
@@ -640,72 +637,71 @@ export default function AssistantWorkspace() {
               </div>
             )}
 
-            {/* Notification Alert Popover */}
-            {showNotificationAlert && (
-              <div className="w-64 p-3 rounded-2xl bg-white/95 dark:bg-[#091A13]/95 backdrop-blur-md border border-slate-200 shadow-xl text-xs space-y-1">
-                <div className="font-black text-[#14532D] flex items-center justify-between">
-                  <span>Farm Notifications</span>
-                  <X className="w-3.5 h-3.5 cursor-pointer" onClick={() => setShowNotificationAlert(false)} />
-                </div>
-                <p className="text-[11px] font-semibold text-slate-600 dark:text-slate-300">
-                  • Optimal drip irrigation timing forecast for tomorrow 6:00 AM.
-                </p>
-              </div>
-            )}
-
             {/* Weather Card */}
-            <div className="hidden sm:flex items-center gap-3 px-4 py-2.5 rounded-2xl bg-white/95 dark:bg-[#091A13]/95 backdrop-blur-md border border-slate-200 dark:border-[#1F7A4D]/30 shadow-xl text-slate-900 dark:text-white">
+            <div className="hidden sm:flex items-center gap-3 px-4 py-2 rounded-2xl bg-white/95 dark:bg-[#091A13]/95 backdrop-blur-md border border-slate-200 dark:border-[#1F7A4D]/30 shadow-xl text-slate-900 dark:text-white">
               <div className="p-1.5 rounded-xl bg-amber-100 text-amber-700 shrink-0">
-                <Sun className="w-5 h-5" />
+                <Sun className="w-4 h-4" />
               </div>
               <div>
-                <div className="text-sm font-black leading-none">28°C <span className="text-xs font-semibold text-slate-500">Clear Sky</span></div>
-                <div className="text-[10px] text-slate-500 font-extrabold mt-0.5">📍 Bengaluru, KA</div>
+                <div className="text-xs font-black leading-none">28°C <span className="text-[10px] font-semibold text-slate-500">Clear Sky</span></div>
+                <div className="text-[9px] text-slate-500 font-extrabold mt-0.5">📍 Bengaluru, KA</div>
               </div>
             </div>
+          </div>
+        </div>
 
+        {/* Scrollable Center Area: Header + Canvas or Continuous Conversation Thread */}
+        <div className="flex-1 relative z-10 w-full min-h-0 overflow-y-auto px-4 sm:px-6 py-2 flex flex-col space-y-4">
+          
+          {/* Main Headline (Always visible at top of conversation area) */}
+          <div className="max-w-3xl mx-auto w-full space-y-1.5 text-center sm:text-left pt-1">
+            <h1 className="text-2xl sm:text-3xl lg:text-4xl font-black text-white tracking-tight leading-tight drop-shadow-xl">
+              Your Farm.{' '}
+              <span className="text-emerald-400 drop-shadow-md">
+                Smarter Decisions.
+              </span>
+            </h1>
+            <p className="text-xs sm:text-sm font-bold text-slate-100 leading-relaxed drop-shadow-md max-w-xl">
+              AI-powered agricultural guidance for healthier crops and higher yields.
+            </p>
           </div>
 
+          {/* Show Farm Canvas Pins when empty thread, or Continuous Chat Thread when messages present */}
+          {messages.length === 0 ? (
+            <div className="flex-1 flex flex-col justify-center items-center relative min-h-[280px]">
+              <FarmCanvas isInteractive={true} onSelectTelemetry={(m) => handleSend({ queryText: `Tell me about ${m.label} on my farm.`, language })} />
+            </div>
+          ) : (
+            <div className="flex-1 w-full max-w-3xl mx-auto py-2">
+              <ErrorBoundary onReset={handleNewConsultation}>
+                <ChatInterface
+                  messages={messages}
+                  isLoading={isLoading}
+                  error={error}
+                  messagesEndRef={messagesEndRef}
+                  onRetry={() => {
+                    const lastUserMsg = [...messages].reverse().find(m => m.role === 'user');
+                    if (lastUserMsg) {
+                      handleSend({ queryText: lastUserMsg.content, image: lastUserMsg.image, language });
+                    }
+                  }}
+                />
+              </ErrorBoundary>
+            </div>
+          )}
+
         </div>
 
-        {/* Center Interactive Telemetry Pins Overlay Layer */}
-        <div className="flex-1 relative z-10 w-full min-h-0 pointer-events-auto">
-          <FarmCanvas isInteractive={true} onSelectTelemetry={(m) => handleSend({ queryText: `Tell me about ${m.label} on my farm.`, language })} />
-        </div>
-
-        {/* Bottom Consultation Console & Category Chips Bar */}
+        {/* Sticky Bottom Consultation Console */}
         <div className="relative z-20 max-w-3xl mx-auto w-full p-4 pt-0 space-y-2 shrink-0">
-          
           <ChatComposer
             onSend={handleSend}
             isLoading={isLoading}
           />
-
-          {/* Script Watermark Text */}
           <div className="text-center font-['Playfair_Display',serif] italic text-xs font-black text-white drop-shadow-lg">
             "Better Farming Brighter Tomorrow"
           </div>
-
         </div>
-
-        {/* ACTIVE CONSULTATION STREAM MODAL */}
-        {(submittedText || submittedImage) && (
-          <div className="fixed inset-0 z-50 p-4 sm:p-6 bg-slate-900/60 backdrop-blur-md flex items-center justify-center overflow-y-auto">
-            <div className="w-full max-w-3xl my-auto">
-              <ChatInterface
-                userMessage={submittedText}
-                userImage={submittedImage}
-                isLoading={isLoading}
-                error={error}
-                isUnrelated={isUnrelated}
-                unrelatedMessage={unrelatedMessage}
-                result={analysisResult}
-                onReset={handleNewConsultation}
-                onRetry={() => handleSend({ queryText: submittedText, image: submittedImage, language })}
-              />
-            </div>
-          </div>
-        )}
 
       </main>
 
@@ -769,7 +765,7 @@ export default function AssistantWorkspace() {
             className="w-full py-3 px-4 rounded-2xl bg-[#14532D] hover:bg-[#1F7A4D] text-white text-xs font-black flex items-center justify-center gap-2 shadow-lg transition-transform active:scale-98 cursor-pointer"
           >
             <Plus className="w-4 h-4" />
-            <span>{t('memory.newConsultation') || '+ New Consultation'}</span>
+            <span>{t('memory.newConsultation') || '+ New Chat'}</span>
           </button>
         </div>
 
@@ -802,7 +798,7 @@ export default function AssistantWorkspace() {
           </p>
         </div>
 
-        {/* Featured Learning Section */}
+        {/* Learning Card */}
         <div className="p-3 rounded-2xl bg-slate-900 text-white shadow-xl space-y-2 relative overflow-hidden group border border-slate-800 min-w-[260px]">
           <div className="relative h-24 w-full rounded-xl overflow-hidden bg-slate-800">
             <img
@@ -837,11 +833,7 @@ export default function AssistantWorkspace() {
 
       </aside>
 
-      {/* ========================================== */}
-      {/* 4. MOBILE DRAWER OVERLAYS (< 1024px) */}
-      {/* ========================================== */}
-
-      {/* Mobile Left Drawer */}
+      {/* Mobile Drawers */}
       {mobileNavOpen && (
         <div className="fixed inset-0 z-50 lg:hidden">
           <div className="absolute inset-0 bg-black/60 backdrop-blur-xs" onClick={() => setMobileNavOpen(false)} />
@@ -901,7 +893,6 @@ export default function AssistantWorkspace() {
         </div>
       )}
 
-      {/* Mobile Right Drawer */}
       {mobileRightOpen && (
         <div className="fixed inset-0 z-50 xl:hidden">
           <div className="absolute inset-0 bg-black/60 backdrop-blur-xs" onClick={() => setMobileRightOpen(false)} />
@@ -918,7 +909,7 @@ export default function AssistantWorkspace() {
 
             <button onClick={handleNewConsultation} className="w-full py-3 px-4 rounded-2xl bg-[#14532D] text-white text-xs font-black flex items-center justify-center gap-2">
               <Plus className="w-4 h-4" />
-              <span>+ New Consultation</span>
+              <span>+ New Chat</span>
             </button>
 
             <div className="flex-1 overflow-y-auto space-y-2">

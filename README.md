@@ -69,14 +69,14 @@ AgriSphere provides guidance on crop selection, disease diagnosis, pest manageme
 npm run dev
 ```
 - **Frontend**: `http://localhost:5173`
-- **Backend API**: `http://localhost:5000/api`
+- **Backend API**: `http://localhost:5001/api`
 
 ### 2. Single Web Service Production Preview Mode
 ```bash
 npm run build
 npm start
 ```
-- **Unified Application**: `http://localhost:5000`
+- **Unified Application**: `http://localhost:5001`
 
 ### 3. Automated Test Suite
 ```bash

@@ -13,23 +13,29 @@ const client = axios.create({
 export const analyzeContent = async (payload) => {
   const startTime = Date.now();
   try {
-    // payload can be string or object { queryText, content, image, mode, language }
-    const body = typeof payload === 'string' ? { content: payload } : payload;
+    // payload can be string or object { queryText, content, message, image, mode, language }
+    const body = typeof payload === 'string'
+      ? { message: payload, queryText: payload, content: payload }
+      : { message: payload.queryText || payload.message || payload.content, queryText: payload.queryText || payload.message, ...payload };
     const res = await client.post('/analyze', body);
     const elapsed = Date.now() - startTime;
     if (elapsed < 1000) {
       await new Promise(resolve => setTimeout(resolve, 1000 - elapsed));
     }
-    return res.data;
+    const data = res.data;
+    console.log('API RESPONSE:', data);
+    return data;
   } catch (err) {
     const elapsed = Date.now() - startTime;
     if (elapsed < 1000) {
       await new Promise(resolve => setTimeout(resolve, 1000 - elapsed));
     }
     if (err.response && err.response.data) {
+      console.log('API RESPONSE (ERROR DATA):', err.response.data);
       return err.response.data;
     }
-    throw new Error(err.message || 'Failed to connect to AgriSphere API service.');
+    console.error('API NETWORK ERROR:', err.message);
+    return { success: false, error: err.message || 'Failed to connect to AgriSphere API service.' };
   }
 };
 
