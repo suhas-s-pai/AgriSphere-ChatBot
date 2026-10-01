@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { History as HistoryIcon, Search, Filter, Sprout, X, Eye, Clock } from 'lucide-react';
+import { History as HistoryIcon, Search, Filter, Sprout, X, Eye, Clock, ArrowLeft } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { useLanguage } from '../context/LanguageContext';
 import FarmCanvas from '../components/FarmCanvas';
 import { getHistory } from '../services/api';
@@ -7,7 +8,16 @@ import { formatDate, getCategoryBadge } from '../utils/formatters';
 import AgriResultCard from '../components/AgriResultCard';
 
 export default function Consultations() {
+  const navigate = useNavigate();
   const { t } = useLanguage();
+
+  const handleBack = () => {
+    if (window.history.length > 2) {
+      navigate(-1);
+    } else {
+      navigate('/assistant');
+    }
+  };
   const [consultations, setConsultations] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -50,6 +60,15 @@ export default function Consultations() {
     <div className="relative min-h-[calc(100vh-5rem)] overflow-x-hidden bg-[#F6F3E8] text-slate-900">
       <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
         
+        {/* Back Button Navigation */}
+        <button
+          onClick={handleBack}
+          className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-white border border-[#1F7A4D]/20 text-[#14532D] text-xs font-black hover:bg-[#1F7A4D]/10 transition-colors shadow-xs cursor-pointer"
+        >
+          <ArrowLeft className="w-4 h-4" />
+          <span>Back</span>
+        </button>
+
         {/* Header */}
         <div className="p-6 sm:p-8 rounded-3xl bg-white border border-[#1F7A4D]/20 shadow-xl">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#1F7A4D]/10 text-[#14532D] text-xs font-black mb-2">

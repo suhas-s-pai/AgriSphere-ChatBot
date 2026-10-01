@@ -7,7 +7,7 @@
 const { isUnrelatedQuery, GUARDRAIL_REJECTION_MESSAGE } = require('./agriClassifier');
 const { callAgriLLM } = require('./agriLLMService');
 
-async function analyzeAgriQuery(rawQuery, imageBase64 = null, mode = 'AUTO', language = 'en', history = []) {
+async function analyzeAgriQuery(rawQuery, imageBase64 = null, mode = 'AUTO', language = 'en', history = [], location = null) {
   if (!rawQuery && !imageBase64) {
     throw new Error('Please provide an agricultural question or crop image for analysis.');
   }
@@ -24,7 +24,7 @@ async function analyzeAgriQuery(rawQuery, imageBase64 = null, mode = 'AUTO', lan
   }
 
   // 2. Try LLM Call (Supports Gemini Vision/Text API)
-  let llmAnalysis = await callAgriLLM(queryText, imageBase64, language, history);
+  let llmAnalysis = await callAgriLLM(queryText, imageBase64, language, history, location);
 
   // 3. If LLM unavailable/failed, use Expert Offline Agriculture Analysis Engine
   if (!llmAnalysis) {

@@ -1,13 +1,14 @@
 import React, { useEffect, useState } from 'react';
-import { Activity, Sprout, Droplets, FlaskConical, BarChart3, Clock, ArrowRight, ShieldCheck, Sun, Leaf, TrendingUp } from 'lucide-react';
+import { Activity, Sprout, Droplets, FlaskConical, BarChart3, Clock, ArrowRight, ShieldCheck, Sun, Leaf, TrendingUp, ArrowLeft } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useLanguage } from '../context/LanguageContext';
 import FarmCanvas from '../components/FarmCanvas';
 import { getDashboardStats } from '../services/api';
 import { formatDate } from '../utils/formatters';
 
 export default function Dashboard() {
+  const navigate = useNavigate();
   const { t } = useLanguage();
   const [stats, setStats] = useState(null);
 
@@ -39,9 +40,26 @@ export default function Dashboard() {
 
   const chartColors = ['#1F7A4D', '#0284C7', '#D9A441', '#7C3AED', '#059669'];
 
+  const handleBack = () => {
+    if (window.history.length > 2) {
+      navigate(-1);
+    } else {
+      navigate('/assistant');
+    }
+  };
+
   return (
     <div className="relative min-h-[calc(100vh-5rem)] overflow-x-hidden bg-[#F6F3E8] text-slate-900">
       <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+        
+        {/* Back Button Navigation */}
+        <button
+          onClick={handleBack}
+          className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-white border border-[#1F7A4D]/20 text-[#14532D] text-xs font-black hover:bg-[#1F7A4D]/10 transition-colors shadow-xs cursor-pointer"
+        >
+          <ArrowLeft className="w-4 h-4" />
+          <span>Back</span>
+        </button>
         
         {/* Farm Intelligence Header Card with Interactive Farm Visualization Map */}
         <div className="p-6 sm:p-8 rounded-3xl bg-white border border-[#1F7A4D]/20 shadow-xl space-y-5">

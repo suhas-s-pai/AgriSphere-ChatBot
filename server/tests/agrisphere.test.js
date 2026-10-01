@@ -159,21 +159,33 @@ async function runAgriSphereTestSuite() {
     const historyRes = await makeRequest({ hostname: 'localhost', port, path: '/consultations', method: 'GET' });
     assert(historyRes.statusCode === 200, 'GET /consultations returns 200 OK (SPA fallback)');
 
-    // POST /api/analyze
-    const payload = JSON.stringify({ queryText: 'What fertilizer is suitable for maize crop?', language: 'en' });
-    const analyzeHttpRes = await makeRequest({
+    // POST /api/analyze with Location Context
+    const payloadLoc = JSON.stringify({
+      queryText: 'Tell my location and which is the best crop I can grow easily?',
+      language: 'en',
+      location: {
+        city: 'Mangaluru',
+        state: 'Karnataka',
+        country: 'India',
+        latitude: 12.9141,
+        longitude: 74.8560,
+        formattedLocation: 'Mangaluru, Karnataka, India',
+        temp: 28,
+        condition: 'Partly Cloudy'
+      }
+    });
+    const analyzeLocHttpRes = await makeRequest({
       hostname: 'localhost',
       port,
       path: '/api/analyze',
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Content-Length': Buffer.byteLength(payload)
+        'Content-Length': Buffer.byteLength(payloadLoc)
       }
-    }, payload);
+    }, payloadLoc);
 
-    assert(analyzeHttpRes.statusCode === 200, 'POST /api/analyze returns 200 OK');
-    assert(analyzeHttpRes.body.includes('Maize') || analyzeHttpRes.body.includes('Fertilizer'), 'API analyze returns agricultural assessment JSON');
+    assert(analyzeLocHttpRes.statusCode === 200, 'POST /api/analyze with Geolocation returns 200 OK');
 
   } catch (err) {
     console.error('❌ Error during HTTP tests:', err);

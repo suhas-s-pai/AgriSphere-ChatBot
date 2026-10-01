@@ -13,6 +13,7 @@ export default function ChatComposer({ onSend, isLoading }) {
   const fileInputRef = useRef(null);
   const cameraInputRef = useRef(null);
   const recognitionRef = useRef(null);
+  const isListeningRef = useRef(false);
 
   const langLabel = currentLanguage?.nativeName || currentLanguage?.name || 'English';
 
@@ -27,51 +28,102 @@ export default function ChatComposer({ onSend, isLoading }) {
 
   useEffect(() => {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (SpeechRecognition) {
-      const recognition = new SpeechRecognition();
-      recognition.continuous = false;
-      recognition.interimResults = false;
+    if (!SpeechRecognition) return;
 
-      recognition.onresult = (event) => {
+    const recognition = new SpeechRecognition();
+    recognition.continuous = false;
+    recognition.interimResults = false;
+
+    recognition.onstart = () => {
+      isListeningRef.current = true;
+      setIsRecording(true);
+      setSpeechError('');
+    };
+
+    recognition.onresult = (event) => {
+      if (event.results && event.results[0] && event.results[0][0]) {
         const transcript = event.results[0][0].transcript;
         setText(prev => (prev ? `${prev} ${transcript}` : transcript));
-        setIsRecording(false);
-      };
+      }
+    };
 
-      recognition.onerror = (event) => {
-        console.warn('Speech recognition error:', event.error);
-        setSpeechError(t('composer.speechError'));
-        setIsRecording(false);
-        setTimeout(() => setSpeechError(''), 4000);
-      };
+    recognition.onerror = (event) => {
+      isListeningRef.current = false;
+      setIsRecording(false);
 
-      recognition.onend = () => {
-        setIsRecording(false);
-      };
+      if (event.error === 'no-speech' || event.error === 'aborted') {
+        console.log(`Speech recognition ended cleanly (${event.error})`);
+        return;
+      }
 
-      recognitionRef.current = recognition;
-    }
+      console.warn('Speech recognition error:', event.error);
+      setSpeechError(t('composer.speechError') || 'Voice recognition error. Please try again.');
+      setTimeout(() => setSpeechError(''), 4000);
+    };
+
+    recognition.onend = () => {
+      isListeningRef.current = false;
+      setIsRecording(false);
+    };
+
+    recognitionRef.current = recognition;
+
+    return () => {
+      if (recognitionRef.current) {
+        try {
+          recognitionRef.current.abort();
+        } catch (e) {
+          // ignore cleanup abort error
+        }
+        recognitionRef.current = null;
+      }
+      isListeningRef.current = false;
+    };
   }, [t]);
 
   const toggleRecording = () => {
-    if (!recognitionRef.current) {
-      setSpeechError(t('composer.notSupported'));
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      setSpeechError(t('composer.notSupported') || 'Voice input is not supported in this browser.');
       setTimeout(() => setSpeechError(''), 4000);
       return;
     }
 
-    if (isRecording) {
-      recognitionRef.current.stop();
+    // If currently listening, stop cleanly and do NOT start again in this transition
+    if (isListeningRef.current || isRecording) {
+      isListeningRef.current = false;
       setIsRecording(false);
-    } else {
+      if (recognitionRef.current) {
+        try {
+          recognitionRef.current.stop();
+        } catch (err) {
+          try {
+            recognitionRef.current.abort();
+          } catch (e) {
+            // ignore
+          }
+        }
+      }
+      return;
+    }
+
+    // Start fresh recognition session
+    if (recognitionRef.current) {
       try {
         recognitionRef.current.lang = speechLocale || 'en-IN';
-        recognitionRef.current.start();
+        isListeningRef.current = true;
         setIsRecording(true);
         setSpeechError('');
+        recognitionRef.current.start();
       } catch (err) {
-        console.warn('Speech start error:', err);
+        console.warn('Speech recognition start caught:', err.message);
+        isListeningRef.current = false;
         setIsRecording(false);
+        try {
+          recognitionRef.current.stop();
+        } catch (e) {
+          // ignore
+        }
       }
     }
   };

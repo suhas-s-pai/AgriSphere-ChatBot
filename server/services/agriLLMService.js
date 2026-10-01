@@ -69,11 +69,29 @@ function parseBase64Image(imageBase64) {
  * Fallback to OpenAI format if OPENAI_API_KEY is supplied instead.
  * Returns normalized object or null (triggering offline fallback engine).
  */
-async function callAgriLLM(queryText, imageBase64 = null, language = 'en', history = []) {
+async function callAgriLLM(queryText, imageBase64 = null, language = 'en', history = [], location = null) {
   const geminiKey = process.env.GEMINI_API_KEY;
   const genericLlmKey = process.env.LLM_API_KEY || process.env.OPENAI_API_KEY;
 
   const targetLang = LANG_MAP[language] || 'English';
+
+  // Construct location context snippet if location details are supplied
+  let locationContextStr = '';
+  if (location && typeof location === 'object') {
+    const city = location.city || location.name || '';
+    const state = location.state || location.region || '';
+    const country = location.country || '';
+    const lat = location.latitude || location.lat || '';
+    const lng = location.longitude || location.lon || location.lng || '';
+    const temp = location.temp || location.temperature || location.temp_c || '';
+    const cond = location.condition || location.weather || location.weatherCondition || '';
+    const formatted = location.formattedLocation || [city, state, country].filter(Boolean).join(', ');
+
+    locationContextStr = `\n\nUSER VERIFIED GEOLOCATION CONTEXT:
+- Location: ${formatted || 'Unknown'} (Latitude: ${lat || 'N/A'}, Longitude: ${lng || 'N/A'})
+- Current Local Weather: ${temp ? temp + '°C' : 'N/A'}, ${cond || 'N/A'}
+IMPORTANT INSTRUCTION: Treat this as the user's real-world verified location and live weather. Provide region-specific crop choices, soil suitability, climate warnings, and agricultural advice tailored to this location. NEVER state that you lack access to the user's location, GPS, or coordinates.`;
+  }
 
   // 1. Primary: Use Official Google Gemini API via @google/genai
   if (geminiKey && geminiKey.trim() !== '') {
@@ -103,7 +121,7 @@ async function callAgriLLM(queryText, imageBase64 = null, language = 'en', histo
 
       // Build current user prompt parts
       const userParts = [];
-      const userPromptText = `User Agriculture Question: "${queryText || 'Analyze attached crop image'}"\nTarget Response Language: Please write your response in ${targetLang}.\nAnalyze and output JSON matching system schema.`;
+      const userPromptText = `User Agriculture Question: "${queryText || 'Analyze attached crop image'}"${locationContextStr}\nTarget Response Language: Please write your response in ${targetLang}.\nAnalyze and output JSON matching system schema.`;
       userParts.push({ text: userPromptText });
 
       // Add inline image if attached

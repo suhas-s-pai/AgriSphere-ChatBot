@@ -10,7 +10,7 @@ export default function FarmCanvas({ isInteractive = true, onSelectTelemetry, sh
     {
       id: 'soil-health',
       top: '68%',
-      left: '36%',
+      left: '26%',
       icon: FlaskConical,
       label: t('farmOverlay.soil') || 'Soil Health',
       status: t('farmOverlay.soilStatus') || 'pH 6.8 (Good)',
@@ -20,8 +20,8 @@ export default function FarmCanvas({ isInteractive = true, onSelectTelemetry, sh
     },
     {
       id: 'crop-health',
-      top: '56%',
-      left: '32%',
+      top: '48%',
+      left: '34%',
       icon: Leaf,
       label: t('farmOverlay.cropHealth') || 'Crop Health',
       status: t('farmOverlay.cropHealthStatus') || 'Healthy (94% Vigor)',
@@ -31,8 +31,8 @@ export default function FarmCanvas({ isInteractive = true, onSelectTelemetry, sh
     },
     {
       id: 'irrigation',
-      top: '65%',
-      left: '52%',
+      top: '66%',
+      left: '48%',
       icon: Droplets,
       label: t('farmOverlay.water') || 'Irrigation',
       status: t('farmOverlay.waterStatus') || 'Optimal Level',
@@ -42,8 +42,8 @@ export default function FarmCanvas({ isInteractive = true, onSelectTelemetry, sh
     },
     {
       id: 'greenhouse',
-      top: '58%',
-      left: '66%',
+      top: '50%',
+      left: '64%',
       icon: ShieldCheck,
       label: t('farmOverlay.greenhouse') || 'Greenhouse',
       status: t('farmOverlay.greenhouseStatus') || 'Controlled Climate',
@@ -53,19 +53,19 @@ export default function FarmCanvas({ isInteractive = true, onSelectTelemetry, sh
     },
     {
       id: 'drone',
-      top: '42%',
-      left: '68%',
+      top: '36%',
+      left: '76%',
       icon: Cpu,
-      label: 'Drone Surveillance',
-      status: 'Active Scanning',
+      label: t('farmOverlay.drone') || 'Drone Surveillance',
+      status: t('farmOverlay.droneStatus') || 'Active Scanning',
       detail: 'Multispectral NDVI map generation in progress',
       badgeColor: 'bg-indigo-600 text-white border-indigo-300',
       glow: 'shadow-indigo-500/40'
     },
     {
       id: 'weather',
-      top: '54%',
-      left: '75%',
+      top: '64%',
+      left: '80%',
       icon: Sun,
       label: t('farmOverlay.weather') || 'Weather',
       status: t('farmOverlay.weatherStatus') || '28°C Sunshine',
@@ -76,7 +76,7 @@ export default function FarmCanvas({ isInteractive = true, onSelectTelemetry, sh
   ];
 
   return (
-    <div className="relative w-full h-full min-h-[300px] select-none pointer-events-auto">
+    <div className="relative w-full h-full min-h-[300px] select-none pointer-events-auto flex flex-col justify-between p-2">
       
       {/* Optional Standalone Background Image */}
       {showBackground && (
@@ -91,82 +91,114 @@ export default function FarmCanvas({ isInteractive = true, onSelectTelemetry, sh
       )}
 
       {/* TOP BRANDING TELEMETRY OVERLAY BADGE */}
-      <div className="absolute top-3 left-4 z-20 flex items-center gap-2.5 px-3 py-1.5 rounded-full bg-white/90 dark:bg-[#091A13]/90 backdrop-blur-md border border-[#1F7A4D]/30 shadow-lg text-slate-900 dark:text-white">
-        <span className="relative flex h-2.5 w-2.5">
+      <div className="relative md:absolute top-2 left-2 md:top-3 md:left-4 z-20 inline-flex items-center gap-2.5 px-3 py-1.5 rounded-full bg-white/90 dark:bg-[#091A13]/90 backdrop-blur-md border border-[#1F7A4D]/30 shadow-lg text-slate-900 dark:text-white max-w-max">
+        <span className="relative flex h-2.5 w-2.5 shrink-0">
           <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
           <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500" />
         </span>
-        <div className="flex items-center gap-2">
-          <span className="text-[10px] font-black uppercase tracking-wider text-[#14532D] dark:text-emerald-300">
+        <div className="flex items-center gap-2 overflow-hidden">
+          <span className="text-[10px] font-black uppercase tracking-wider text-[#14532D] dark:text-emerald-300 truncate">
             SMART FARM LIVE TELEMETRY
           </span>
-          <span className="text-[10px] font-bold text-slate-500 dark:text-slate-300 border-l border-slate-300 pl-2">
-            Real-time IoT & AI Monitoring Active
+          <span className="hidden sm:inline-block text-[10px] font-bold text-slate-500 dark:text-slate-300 border-l border-slate-300 dark:border-slate-700 pl-2 truncate">
+            Real-time IoT & AI Monitoring
           </span>
         </div>
       </div>
 
-      {/* FLOATING INTERACTIVE TELEMETRY MARKERS */}
-      {isInteractive && telemetryMarkers.map((marker) => {
-        const Icon = marker.icon;
-        const isActive = activePin === marker.id;
+      {/* DESKTOP FLOATING INTERACTIVE TELEMETRY MARKERS */}
+      {isInteractive && (
+        <div className="hidden md:block absolute inset-0 pointer-events-none">
+          {telemetryMarkers.map((marker) => {
+            const Icon = marker.icon;
+            const isActive = activePin === marker.id;
 
-        return (
-          <div
-            key={marker.id}
-            style={{ top: marker.top, left: marker.left }}
-            className="absolute z-20 -translate-x-1/2 -translate-y-1/2 transition-all duration-300"
-          >
-            <div className="relative group/pin">
-              
-              {/* Radar Pulse Ring */}
-              <div className="absolute -inset-2 rounded-full bg-emerald-400/30 animate-pulse pointer-events-none" />
-
-              {/* Marker Button */}
-              <button
-                onClick={() => {
-                  setActivePin(isActive ? null : marker.id);
-                  if (onSelectTelemetry) onSelectTelemetry(marker);
-                }}
-                className={`relative flex items-center gap-1.5 px-3 py-1.5 rounded-full backdrop-blur-md border shadow-xl transition-all transform active:scale-95 ${marker.badgeColor} ${marker.glow}`}
-                title={marker.label}
-              >
-                <Icon className="w-3.5 h-3.5 shrink-0" />
-                <span className="text-[11px] font-extrabold whitespace-nowrap">
-                  {marker.label}
-                </span>
-                <span className="w-1.5 h-1.5 rounded-full bg-white opacity-80" />
-              </button>
-
-              {/* Hover / Active Telemetry Glassmorphism Detail Card */}
+            return (
               <div
-                className={`absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-56 p-3 rounded-2xl bg-white/95 dark:bg-[#091A13]/95 backdrop-blur-xl border border-[#1F7A4D]/30 shadow-2xl transition-all duration-200 pointer-events-none z-30 ${
-                  isActive ? 'opacity-100 scale-100 translate-y-0' : 'opacity-0 scale-95 translate-y-2 group-hover/pin:opacity-100 group-hover/pin:scale-100 group-hover/pin:translate-y-0'
-                }`}
+                key={marker.id}
+                style={{ top: marker.top, left: marker.left }}
+                className="absolute z-20 -translate-x-1/2 -translate-y-1/2 transition-all duration-300 pointer-events-auto"
               >
-                <div className="flex items-center gap-2 mb-1">
-                  <div className={`p-1.5 rounded-xl ${marker.badgeColor}`}>
-                    <Icon className="w-3.5 h-3.5 text-white" />
-                  </div>
-                  <div>
-                    <h5 className="text-xs font-black text-[#14532D] dark:text-white leading-tight">
-                      {marker.label}
-                    </h5>
-                    <span className="text-[10px] font-extrabold text-emerald-600 dark:text-emerald-400">
-                      {marker.status}
-                    </span>
-                  </div>
-                </div>
-                <p className="text-[11px] text-slate-600 dark:text-slate-300 font-semibold leading-snug">
-                  {marker.detail}
-                </p>
-              </div>
+                <div className="relative group/pin">
+                  
+                  {/* Radar Pulse Ring */}
+                  <div className="absolute -inset-2 rounded-full bg-emerald-400/30 animate-pulse pointer-events-none" />
 
-            </div>
+                  {/* Marker Button */}
+                  <button
+                    onClick={() => {
+                      setActivePin(isActive ? null : marker.id);
+                      if (onSelectTelemetry) onSelectTelemetry(marker);
+                    }}
+                    className={`relative flex items-center gap-1.5 px-3 py-1.5 rounded-full backdrop-blur-md border shadow-xl transition-all transform hover:scale-105 active:scale-95 cursor-pointer ${marker.badgeColor} ${marker.glow}`}
+                    title={marker.label}
+                  >
+                    <Icon className="w-3.5 h-3.5 shrink-0" />
+                    <span className="text-[11px] font-extrabold whitespace-nowrap">
+                      {marker.label}
+                    </span>
+                    <span className="w-1.5 h-1.5 rounded-full bg-white opacity-80" />
+                  </button>
+
+                  {/* Hover / Active Telemetry Glassmorphism Detail Card */}
+                  <div
+                    className={`absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-56 p-3 rounded-2xl bg-white/95 dark:bg-[#091A13]/95 backdrop-blur-xl border border-[#1F7A4D]/30 shadow-2xl transition-all duration-200 pointer-events-none z-30 ${
+                      isActive ? 'opacity-100 scale-100 translate-y-0' : 'opacity-0 scale-95 translate-y-2 group-hover/pin:opacity-100 group-hover/pin:scale-100 group-hover/pin:translate-y-0'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2 mb-1">
+                      <div className={`p-1.5 rounded-xl ${marker.badgeColor}`}>
+                        <Icon className="w-3.5 h-3.5 text-white" />
+                      </div>
+                      <div>
+                        <h5 className="text-xs font-black text-[#14532D] dark:text-white leading-tight">
+                          {marker.label}
+                        </h5>
+                        <span className="text-[10px] font-extrabold text-emerald-600 dark:text-emerald-400">
+                          {marker.status}
+                        </span>
+                      </div>
+                    </div>
+                    <p className="text-[11px] text-slate-600 dark:text-slate-300 font-semibold leading-snug">
+                      {marker.detail}
+                    </p>
+                  </div>
+
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* MOBILE / RESPONSIVE BOTTOM TELEMETRY STRIP */}
+      {isInteractive && (
+        <div className="md:hidden relative z-20 mt-auto pt-4 pb-1">
+          <div className="flex items-center gap-2 overflow-x-auto no-scrollbar py-1 px-1">
+            {telemetryMarkers.map((marker) => {
+              const Icon = marker.icon;
+              return (
+                <button
+                  key={marker.id}
+                  onClick={() => {
+                    setActivePin(activePin === marker.id ? null : marker.id);
+                    if (onSelectTelemetry) onSelectTelemetry(marker);
+                  }}
+                  className={`flex items-center gap-2 px-3 py-2 rounded-2xl text-left border shrink-0 shadow-md backdrop-blur-md transition-all active:scale-95 cursor-pointer ${marker.badgeColor}`}
+                >
+                  <Icon className="w-4 h-4 shrink-0" />
+                  <div>
+                    <div className="text-[11px] font-black leading-tight whitespace-nowrap">{marker.label}</div>
+                    <div className="text-[9px] font-bold opacity-90 whitespace-nowrap">{marker.status}</div>
+                  </div>
+                </button>
+              );
+            })}
           </div>
-        );
-      })}
+        </div>
+      )}
 
     </div>
   );
 }
+

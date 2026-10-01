@@ -4,13 +4,16 @@ const { getStatus, memoryStore } = require('../config/db');
 
 exports.analyzeContent = async (req, res, next) => {
   try {
-    const { query, content, queryText, message: inputMsg, image, mode = 'AUTO', language = 'en', history = [], messages = [] } = req.body;
+    const { location, query, content, queryText, message: inputMsg, image, mode = 'AUTO', language = 'en', history = [], messages = [] } = req.body;
     const textToAnalyze = (query || queryText || content || inputMsg || '').trim();
     const chatHistory = Array.isArray(history) && history.length > 0 ? history : messages;
 
     console.log('POST /api/analyze RECEIVED');
     console.log('REQUEST BODY:', req.body);
     console.log('USER QUESTION:', textToAnalyze || '[Image Query]');
+    if (location) {
+      console.log('LOCATION CONTEXT RECEIVED:', location);
+    }
 
     if (!textToAnalyze && !image) {
       return res.status(400).json({
@@ -26,7 +29,7 @@ exports.analyzeContent = async (req, res, next) => {
       });
     }
 
-    const { isUnrelated, message: guardrailMsg, result, hasImage } = await analyzeAgriQuery(textToAnalyze, image, mode, language, chatHistory);
+    const { isUnrelated, message: guardrailMsg, result, hasImage } = await analyzeAgriQuery(textToAnalyze, image, mode, language, chatHistory, location);
 
     if (isUnrelated) {
       const responsePayload = {
