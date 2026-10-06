@@ -65,13 +65,13 @@ export default function WelcomePage() {
       {/* ============================================================ */}
       {/* 2. MAIN FOREGROUND HERO COMPOSITION                          */}
       {/* ============================================================ */}
-      <div className="relative z-20 flex flex-col h-full justify-between px-4 sm:px-10 md:px-16 py-6 sm:py-8 max-w-7xl mx-auto">
+      <div className="relative z-40 flex flex-col h-full justify-between px-4 sm:px-10 md:px-16 py-6 sm:py-8 max-w-7xl mx-auto">
         
         {/* TOP BRAND HEADER */}
         <header className={`flex items-center justify-between transition-all duration-500 ease-out ${
           isTransitioning
             ? 'opacity-0 -translate-y-4'
-            : 'opacity-100 translate-y-0 animate-hero-entrance'
+            : 'opacity-100 translate-y-0'
         }`}>
           {/* Logo & Product Identity */}
           <div className="flex items-center gap-2.5 sm:gap-3">
@@ -113,7 +113,7 @@ export default function WelcomePage() {
         <div className={`max-w-2xl space-y-4 sm:space-y-5 my-auto pt-2 sm:pt-4 text-left transition-all duration-500 ease-out ${
           isTransitioning
             ? 'opacity-0 translate-y-4 scale-98'
-            : 'opacity-100 translate-y-0 scale-100 animate-hero-entrance'
+            : 'opacity-100 translate-y-0 scale-100'
         }`}>
           
           {/* Subtle Location Context Detail */}
