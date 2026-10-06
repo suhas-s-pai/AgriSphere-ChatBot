@@ -19,7 +19,7 @@ function AppLayout() {
     <div className="flex flex-col min-h-screen bg-[#F6F3E8] dark:bg-[#07130e] text-slate-900 dark:text-slate-100 font-['Plus_Jakarta_Sans',sans-serif] antialiased overflow-x-hidden selection:bg-[#1F7A4D]/20 selection:text-[#14532D]">
       <main className={isFullscreenRoute ? "h-screen h-[100dvh] overflow-hidden" : "flex-grow"}>
         <Routes>
-          <Route path="/" element={<WelcomePage />} />
+          <Route path="/" element={<AssistantWorkspace />} />
           <Route path="/welcome" element={<WelcomePage />} />
           <Route path="/assistant" element={<AssistantWorkspace />} />
           <Route path="/home" element={<AssistantWorkspace />} />
