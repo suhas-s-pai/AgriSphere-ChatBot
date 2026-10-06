@@ -80,6 +80,17 @@ body {
   }
 }
 
+@keyframes heroEntrance {
+  0% {
+    opacity: 0;
+    transform: translateY(8px) scale(0.99);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
 .animate-cinematic-drift {
   animation: cinematicDrift 24s ease-in-out infinite alternate;
   will-change: transform;
@@ -96,10 +107,15 @@ body {
   will-change: transform;
 }
 
+.animate-hero-entrance {
+  animation: heroEntrance 0.4s ease-out forwards;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .animate-cinematic-drift,
   .animate-light-sweep,
-  .animate-crop-sway {
+  .animate-crop-sway,
+  .animate-hero-entrance {
     animation: none !important;
   }
 }

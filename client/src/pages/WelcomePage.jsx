@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowRight, Globe, MapPin } from 'lucide-react';
 import AgriSphereLogo from '../components/AgriSphereLogo';
@@ -10,33 +10,8 @@ export default function WelcomePage() {
   const { language, setLanguage, t, supportedLanguages } = useLanguage();
   const { location: userLocation } = useLocationContext();
 
-  // Reveal animation stage: 0 (dark) -> 1 (light) -> 2 (landscape) -> 3 (logo) -> 4 (full UI)
-  const [revealStage, setRevealStage] = useState(() => {
-    try {
-      return sessionStorage.getItem('agrisphere_visited_welcome') === 'true' ? 4 : 0;
-    } catch {
-      return 0;
-    }
-  });
-
-  // Transition out state for cinematic zoom into workspace
+  // Transition out state for cinematic zoom into workspace on "GET STARTED" click
   const [isTransitioning, setIsTransitioning] = useState(false);
-
-  useEffect(() => {
-    if (revealStage === 4) return;
-
-    const t1 = setTimeout(() => setRevealStage(1), 200);
-    const t2 = setTimeout(() => setRevealStage(2), 500);
-    const t3 = setTimeout(() => setRevealStage(3), 900);
-    const t4 = setTimeout(() => setRevealStage(4), 1400);
-
-    return () => {
-      clearTimeout(t1);
-      clearTimeout(t2);
-      clearTimeout(t3);
-      clearTimeout(t4);
-    };
-  }, [revealStage]);
 
   const handleGetStarted = () => {
     if (isTransitioning) return;
@@ -58,7 +33,7 @@ export default function WelcomePage() {
       {/* ============================================================ */}
       {/* 1. CINEMATIC PHOTOREALISTIC BACKGROUND & LIGHT SWEEP         */}
       {/* ============================================================ */}
-      <div className={`absolute inset-0 z-0 transition-opacity duration-800 ${revealStage >= 1 ? 'opacity-100' : 'opacity-0'}`}>
+      <div className="absolute inset-0 z-0 opacity-100">
         
         {/* Full-bleed Photorealistic Landscape with slow cinematic camera drift */}
         <div className={`w-full h-full transform transition-all duration-800 ease-out ${
@@ -67,6 +42,9 @@ export default function WelcomePage() {
           <img
             src="/Golden Sunset.png"
             alt="AgriSphere Golden Sunset Landscape"
+            decoding="async"
+            loading="eager"
+            fetchPriority="high"
             className="w-full h-full object-cover object-center filter brightness-[0.92] contrast-[1.04]"
           />
         </div>
@@ -79,21 +57,21 @@ export default function WelcomePage() {
         <div className="absolute inset-0 bg-gradient-to-r from-black/75 via-black/25 to-transparent pointer-events-none" />
       </div>
 
-      {/* Natural Atmospheric Cross-fade (Clean camera entry without any green screens or flashes) */}
+      {/* Natural Atmospheric Cross-fade (Clean camera entry into workspace when Get Started is clicked) */}
       <div className={`absolute inset-0 z-30 bg-black pointer-events-none transition-opacity duration-800 ease-out ${
         isTransitioning ? 'opacity-75' : 'opacity-0'
       }`} />
 
       {/* ============================================================ */}
-      {/* 3. MAIN FOREGROUND HERO COMPOSITION                          */}
+      {/* 2. MAIN FOREGROUND HERO COMPOSITION                          */}
       {/* ============================================================ */}
       <div className="relative z-20 flex flex-col h-full justify-between px-4 sm:px-10 md:px-16 py-6 sm:py-8 max-w-7xl mx-auto">
         
         {/* TOP BRAND HEADER */}
-        <header className={`flex items-center justify-between transition-all duration-1000 ${
-          revealStage >= 3 && !isTransitioning
-            ? 'opacity-100 translate-y-0'
-            : 'opacity-0 -translate-y-4'
+        <header className={`flex items-center justify-between transition-all duration-500 ease-out ${
+          isTransitioning
+            ? 'opacity-0 -translate-y-4'
+            : 'opacity-100 translate-y-0 animate-hero-entrance'
         }`}>
           {/* Logo & Product Identity */}
           <div className="flex items-center gap-2.5 sm:gap-3">
@@ -132,10 +110,10 @@ export default function WelcomePage() {
         </header>
 
         {/* HERO MAIN CONTENT */}
-        <div className={`max-w-2xl space-y-4 sm:space-y-5 my-auto pt-2 sm:pt-4 text-left transition-all duration-1000 ease-out ${
-          revealStage >= 4 && !isTransitioning
-            ? 'opacity-100 translate-y-0 scale-100'
-            : 'opacity-0 translate-y-8 scale-98'
+        <div className={`max-w-2xl space-y-4 sm:space-y-5 my-auto pt-2 sm:pt-4 text-left transition-all duration-500 ease-out ${
+          isTransitioning
+            ? 'opacity-0 translate-y-4 scale-98'
+            : 'opacity-100 translate-y-0 scale-100 animate-hero-entrance'
         }`}>
           
           {/* Subtle Location Context Detail */}
