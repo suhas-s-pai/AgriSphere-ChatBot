@@ -37,7 +37,7 @@ export default function WelcomePage() {
         
         {/* Full-bleed Photorealistic Landscape with slow cinematic camera drift */}
         <div className={`w-full h-full transform transition-all duration-800 ease-out ${
-          isTransitioning ? 'scale-[1.08] filter blur-[2px]' : 'animate-cinematic-drift'
+          isTransitioning ? 'scale-[1.08] filter blur-[2px]' : ''
         }`}>
           <img
             src="/Golden Sunset.png"
@@ -50,7 +50,7 @@ export default function WelcomePage() {
         </div>
 
         {/* Dynamic Sunlight Sweep Layer */}
-        <div className="absolute inset-0 bg-gradient-to-tr from-amber-500/15 via-emerald-950/10 to-transparent pointer-events-none animate-light-sweep" />
+        <div className="absolute inset-0 bg-gradient-to-tr from-amber-500/15 via-emerald-950/10 to-transparent pointer-events-none" />
 
         {/* Subtle Vignette & Gradient Overlays for Pure Text Readability */}
         <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/30 to-black/50 pointer-events-none" />
@@ -58,14 +58,14 @@ export default function WelcomePage() {
       </div>
 
       {/* Natural Atmospheric Cross-fade (Clean camera entry into workspace when Get Started is clicked) */}
-      <div className={`absolute inset-0 z-30 bg-black pointer-events-none transition-opacity duration-800 ease-out ${
-        isTransitioning ? 'opacity-75' : 'opacity-0'
-      }`} />
+      {isTransitioning && (
+        <div className="absolute inset-0 z-30 bg-black/75 pointer-events-none transition-opacity duration-800 ease-out" />
+      )}
 
       {/* ============================================================ */}
       {/* 2. MAIN FOREGROUND HERO COMPOSITION                          */}
       {/* ============================================================ */}
-      <div className="relative z-40 flex flex-col h-full justify-between px-4 sm:px-10 md:px-16 py-6 sm:py-8 max-w-7xl mx-auto">
+      <div className="relative z-50 flex flex-col h-full justify-between px-4 sm:px-10 md:px-16 py-6 sm:py-8 max-w-7xl mx-auto">
         
         {/* TOP BRAND HEADER */}
         <header className={`flex items-center justify-between transition-all duration-500 ease-out ${
@@ -117,13 +117,13 @@ export default function WelcomePage() {
         }`}>
           
           {/* Subtle Location Context Detail */}
-          {userLocation?.formattedLocation && (
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-black/40 backdrop-blur-md border border-white/20 text-[11px] sm:text-xs font-extrabold text-emerald-300 shadow-md">
               <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
               <MapPin className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-              <span className="truncate max-w-[220px] sm:max-w-none">{userLocation.formattedLocation}</span>
+              <span className="truncate max-w-[220px] sm:max-w-none">
+                {userLocation?.formattedLocation || 'Location updates when available'}
+              </span>
             </div>
-          )}
 
           {/* Main Hero Title */}
           <h1 className="text-3xl sm:text-5xl lg:text-6xl font-black text-white tracking-tight leading-[1.08] drop-shadow-[0_6px_24px_rgba(0,0,0,0.95)]">
