@@ -78,19 +78,31 @@ async function callAgriLLM(queryText, imageBase64 = null, language = 'en', histo
   // Construct location context snippet if location details are supplied
   let locationContextStr = '';
   if (location && typeof location === 'object') {
-    const city = location.city || location.name || '';
-    const state = location.state || location.region || '';
-    const country = location.country || '';
-    const lat = location.latitude || location.lat || '';
-    const lng = location.longitude || location.lon || location.lng || '';
-    const temp = location.temp || location.temperature || location.temp_c || '';
-    const cond = location.condition || location.weather || location.weatherCondition || '';
-    const formatted = location.formattedLocation || [city, state, country].filter(Boolean).join(', ');
+    const isGlobal = location.mode === 'global';
 
-    locationContextStr = `\n\nUSER VERIFIED GEOLOCATION CONTEXT:
-- Location: ${formatted || 'Unknown'} (Latitude: ${lat || 'N/A'}, Longitude: ${lng || 'N/A'})
-- Current Local Weather: ${temp ? temp + '°C' : 'N/A'}, ${cond || 'N/A'}
-IMPORTANT INSTRUCTION: Treat this as the user's real-world verified location and live weather. Provide region-specific crop choices, soil suitability, climate warnings, and agricultural advice tailored to this location. NEVER state that you lack access to the user's location, GPS, or coordinates.`;
+    if (isGlobal) {
+      locationContextStr = `\n\nLOCATION MODE: GLOBAL
+The user has explicitly selected GLOBAL location mode for general agricultural guidance.
+Provide broad, universally applicable agricultural advice without assuming a specific user region, climate zone, or GPS coordinates.
+If relevant to the user's question, explain that optimal crops, fertilizer rates, or sowing schedules vary depending on local microclimates and soil conditions.
+NEVER state that location access is missing or unavailable — the user intentionally chose GLOBAL agricultural guidance.`;
+    } else {
+      const city = location.city || location.name || '';
+      const state = location.state || location.region || '';
+      const country = location.country || '';
+      const lat = location.latitude || location.lat || '';
+      const lng = location.longitude || location.lon || location.lng || '';
+      const temp = location.temp || location.temperature || location.temp_c || '';
+      const cond = location.condition || location.weather || location.weatherCondition || '';
+      const formatted = location.formattedLocation || [city, state, country].filter(Boolean).join(', ');
+
+      locationContextStr = `\n\nUSER VERIFIED GEOLOCATION CONTEXT (CURRENT LOCATION MODE):
+- Location Mode: CURRENT LOCATION
+- Active Verified Location: ${formatted || 'Unknown'} (City: ${city || 'N/A'}, State: ${state || 'N/A'}, Country: ${country || 'N/A'})
+- Coordinates: Latitude ${lat || 'N/A'}, Longitude ${lng || 'N/A'}
+- Live Weather: ${temp ? temp + '°C' : 'N/A'}, ${cond || 'N/A'}
+IMPORTANT INSTRUCTION: The user is in CURRENT LOCATION mode. Treat this as the user's real-world verified location and live weather. Provide region-specific crop choices, soil suitability, climate warnings, and agricultural advice specifically tailored to this location. NEVER state that you lack access to the user's location, GPS, or coordinates.`;
+    }
   }
 
   // 1. Primary: Use Official Google Gemini API via @google/genai
@@ -102,11 +114,9 @@ IMPORTANT INSTRUCTION: Treat this as the user's real-world verified location and
       // The remaining candidates are current Gemini API model IDs.
       const candidateModels = Array.from(new Set([
         process.env.GEMINI_MODEL,
+        'gemini-3.8-flash',
         'gemini-3.5-flash-lite',
         'gemini-3.5-flash',
-        'gemini-3.8-flash',
-        'gemini-3.7-flash',
-        'gemini-3.6-flash',
         'gemini-2.5-flash'
       ])).filter(Boolean);
 

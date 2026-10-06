@@ -19,26 +19,22 @@ import {
   FlaskConical,
   Trash2,
   MapPin,
-  RotateCw
+  RotateCw,
+  PanelLeftClose,
+  PanelLeftOpen,
+  Menu,
+  X
 } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
 import { useTheme } from '../context/ThemeContext';
+import { useLocationContext } from '../context/LocationContext';
 import AgriSphereLogo from '../components/AgriSphereLogo';
 import ChatComposer from '../components/ChatComposer';
 import ChatInterface from '../components/ChatInterface';
 import ErrorBoundary from '../components/ErrorBoundary';
 import FarmCanvas from '../components/FarmCanvas';
+import LocationSelectorDropdown from '../components/LocationSelectorDropdown';
 import { analyzeContent, getHistory } from '../services/api';
-import { fetchRealUserLocation, getCachedLocation } from '../services/locationService';
-
-const SUGGESTED_TOPICS = [
-  { label: 'Tomato Disease Check', query: 'My tomato leaves are turning yellow with brown spots. What should I do?' },
-  { label: 'Paddy Drip Schedule', query: 'When should I irrigate my rice paddy field during flowering stage?' },
-  { label: 'Maize Fertilizer NPK', query: 'What is the recommended fertilizer dose and application schedule for maize?' },
-  { label: 'Onion Thrips Control', query: 'How can I control thrips infestation on onion leaves organically?' },
-  { label: 'Greenhouse Farming', query: 'What are the best crops for greenhouse farming in warm humid regions?' },
-  { label: 'Soil Health pH 6.8', query: 'How to amend acidic soil to maintain pH 6.8 for optimal nutrient absorption?' }
-];
 
 const CHAT_STATE_KEY = 'agrisphere-active-chat';
 const RECENTS_CLEARED_KEY = 'agrisphere-recents-cleared';
@@ -47,6 +43,22 @@ export default function AssistantWorkspace() {
   const { language, setLanguage, t, supportedLanguages } = useLanguage();
   const { isDark, toggleTheme } = useTheme();
   const location = useLocation();
+
+  // Central Location State
+  const {
+    location: userLocation,
+    loading: locationLoading,
+    error: locationError,
+    permissionDenied,
+    requestLocation,
+    refreshLocation
+  } = useLocationContext();
+
+  // Desktop left sidebar toggle state
+  const [isLeftNavOpen, setIsLeftNavOpen] = useState(true);
+
+  // Mobile navigation drawer state
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
   // Home Mode vs Chat Mode state
   const [isChatMode, setIsChatMode] = useState(() => {
@@ -74,7 +86,19 @@ export default function AssistantWorkspace() {
 
   const messagesEndRef = useRef(null);
 
-  // Keep the active chat intact when navigating to View all and back.
+  // Keyboard shortcut Ctrl+B to toggle left nav
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'b') {
+        e.preventDefault();
+        setIsLeftNavOpen(prev => !prev);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
+  // Persist active chat thread in sessionStorage
   useEffect(() => {
     try {
       sessionStorage.setItem(CHAT_STATE_KEY, JSON.stringify({
@@ -86,7 +110,7 @@ export default function AssistantWorkspace() {
     }
   }, [isChatMode, messages]);
 
-  // Auto-scroll to bottom of conversation whenever messages or loading state update
+  // Auto-scroll to bottom of conversation
   useEffect(() => {
     if (isChatMode) {
       messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -126,29 +150,6 @@ export default function AssistantWorkspace() {
     fetchBackendHistory();
   }, []);
 
-  // Real User Location & Weather State
-  const [userLocation, setUserLocation] = useState(() => getCachedLocation());
-  const [locationLoading, setLocationLoading] = useState(!getCachedLocation());
-  const [locationError, setLocationError] = useState(null);
-
-  const loadLocation = async () => {
-    setLocationLoading(true);
-    setLocationError(null);
-    const data = await fetchRealUserLocation();
-    if (data.success) {
-      setUserLocation(data);
-    } else {
-      setLocationError(data.error || 'Location unavailable');
-    }
-    setLocationLoading(false);
-  };
-
-  useEffect(() => {
-    if (!userLocation) {
-      loadLocation();
-    }
-  }, []);
-
   const handleSelectActivity = (item) => {
     sessionStorage.removeItem(RECENTS_CLEARED_KEY);
     setActiveItem(item);
@@ -158,6 +159,7 @@ export default function AssistantWorkspace() {
     ]);
     setError(null);
     setIsChatMode(true);
+    setMobileNavOpen(false);
   };
 
   const handleNewConsultation = () => {
@@ -165,6 +167,7 @@ export default function AssistantWorkspace() {
     setMessages([]);
     setError(null);
     setIsChatMode(true);
+    setMobileNavOpen(false);
   };
 
   const handleClearRecents = () => {
@@ -178,6 +181,7 @@ export default function AssistantWorkspace() {
     setMessages([]);
     setError(null);
     setIsChatMode(false);
+    setMobileNavOpen(false);
   };
 
   const handleSend = async ({ queryText, image, language: overrideLang }) => {
@@ -200,7 +204,6 @@ export default function AssistantWorkspace() {
     setIsChatMode(true);
 
     try {
-      // Build history payload from recent messages in thread for Gemini API
       const historyPayload = messages.slice(-6).map(m => ({
         role: m.role,
         message: m.content || m.result?.message || m.result?.assessment || ''
@@ -272,52 +275,69 @@ export default function AssistantWorkspace() {
   };
 
   return (
-    <div className="h-screen h-[100dvh] w-full flex bg-[#FAF8F3] dark:bg-[#07130e] text-slate-900 dark:text-slate-100 overflow-hidden font-['Plus_Jakarta_Sans',sans-serif] relative select-none-or-normal">
+    <div className="h-screen h-[100dvh] w-full flex text-slate-900 dark:text-slate-100 overflow-hidden font-['Plus_Jakarta_Sans',sans-serif] relative select-none-or-normal bg-slate-950">
       
-      {/* ========================================== */}
-      {/* LEFT SIDEBAR — REAL CHAT HISTORY + PROFILE */}
-      {/* ========================================== */}
-      <aside className="hidden lg:flex w-72 xl:w-80 flex-col shrink-0 bg-white/95 dark:bg-[#091A13]/95 backdrop-blur-xl border-r border-slate-200/80 dark:border-[#1F7A4D]/20 h-full p-4 sm:p-5 z-30 relative shadow-xl">
-        <div className="flex flex-col h-full min-w-0 space-y-4">
+      {/* Full-bleed Background Landscape Image spanning the ENTIRE viewport (under sidebar and main) */}
+      <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none">
+        <img
+          src="/Golden Sunset.png"
+          alt="AgriSphere Landscape Visual"
+          className={`w-full h-full object-cover object-center filter transition-all duration-500 ease-in-out ${
+            isChatMode ? 'brightness-[0.35] blur-md scale-105' : 'brightness-[0.98] contrast-[1.03]'
+          }`}
+        />
+        <div className={`absolute inset-0 bg-gradient-to-t pointer-events-none transition-opacity duration-500 ${
+          isChatMode ? 'from-black/85 via-black/55 to-black/75' : 'from-black/40 via-transparent to-black/20'
+        }`} />
+      </div>
 
-          {/* Brand */}
-          <Link to="/" className="flex items-center gap-3 px-1 group shrink-0">
+      {/* ============================================================ */}
+      {/* 1. GLASSMORPHISM COLLAPSIBLE DESKTOP LEFT SIDEBAR             */}
+      {/* ============================================================ */}
+      <aside
+        className={`hidden lg:flex flex-col shrink-0 bg-white/30 dark:bg-[#07130e]/40 backdrop-blur-2xl border-r border-white/30 dark:border-[#1F7A4D]/30 h-full z-20 relative shadow-2xl transition-all duration-300 ease-in-out ${
+          isLeftNavOpen
+            ? 'w-72 xl:w-80 opacity-100 translate-x-0 p-4 sm:p-5'
+            : 'w-0 p-0 opacity-0 -translate-x-full border-0 overflow-hidden'
+        }`}
+      >
+        <div className="flex flex-col h-full min-w-[240px] space-y-4">
+
+          {/* Brand Identity */}
+          <Link to="/welcome" className="flex items-center gap-3 px-1 group shrink-0" title="Return to AgriSphere Welcome Experience">
             <div className="w-9 h-9 rounded-xl overflow-hidden shadow-md group-hover:scale-105 transition-transform shrink-0">
               <AgriSphereLogo className="w-full h-full" />
             </div>
             <div>
               <div className="flex items-center tracking-tight font-black text-xl leading-none">
-                <span className="text-slate-900 dark:text-white">Agri</span>
-                <span className="text-[#14532D] dark:text-emerald-400">Sphere</span>
+                <span className="text-slate-900 dark:text-white drop-shadow-xs">Agri</span>
+                <span className="text-[#14532D] dark:text-emerald-400 drop-shadow-xs">Sphere</span>
               </div>
-              <p className="text-[10px] font-bold text-slate-500 dark:text-slate-400 mt-0.5">
+              <p className="text-[10px] font-bold text-slate-700 dark:text-slate-300 mt-0.5">
                 {t('footer.tagline') || 'Smart Farming. Better Decisions.'}
               </p>
             </div>
           </Link>
 
-          <hr className="border-slate-200/80 dark:border-[#1F7A4D]/20 my-1 shrink-0" />
+          <hr className="border-white/30 dark:border-[#1F7A4D]/30 my-1 shrink-0" />
 
-          {/* REAL RECENT CHAT HISTORY — no dummy entries */}
+          {/* RECENT CHAT HISTORY (No "View All") */}
           <div className="space-y-2 shrink-0">
             <div className="flex items-center justify-between px-1">
               <h3 className="text-xs font-black text-slate-900 dark:text-white uppercase tracking-wider">
                 {t('workspace.recent') || 'Recent'}
               </h3>
-              <div className="flex items-center gap-2">
-                <Link to="/consultations" className="text-[11px] font-black text-[#14532D] dark:text-emerald-400 hover:underline">
-                  {t('workspace.viewAll') || 'View all →'}
-                </Link>
+              {activityItems.length > 0 && (
                 <button
                   type="button"
                   onClick={handleClearRecents}
                   className="inline-flex items-center gap-1 text-[10px] font-black text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 transition-colors cursor-pointer"
-                  title="Clear all recent chats"
+                  title="Clear recent chats"
                 >
                   <Trash2 className="w-3 h-3" />
                   <span>Clear</span>
                 </button>
-              </div>
+              )}
             </div>
 
             <div className="space-y-1.5">
@@ -328,7 +348,11 @@ export default function AssistantWorkspace() {
                   <button
                     key={item.id}
                     onClick={() => handleSelectActivity(item)}
-                    className={`w-full text-left p-2 rounded-2xl transition-all flex items-center gap-2.5 group border cursor-pointer ${isSelected ? 'bg-[#14532D] text-white border-[#14532D] shadow-md' : 'bg-white dark:bg-[#091A13] border-slate-200/80 dark:border-[#1F7A4D]/15 hover:border-[#14532D] hover:shadow-xs text-slate-800 dark:text-slate-100'}`}
+                    className={`w-full text-left p-2 rounded-2xl transition-all flex items-center gap-2.5 group border cursor-pointer ${
+                      isSelected
+                        ? 'bg-[#14532D] text-white border-[#14532D] shadow-md'
+                        : 'bg-white/40 dark:bg-black/35 backdrop-blur-md border-white/40 dark:border-[#1F7A4D]/25 hover:bg-white/60 dark:hover:bg-black/55 text-slate-900 dark:text-slate-100 shadow-xs'
+                    }`}
                   >
                     <div className={`p-1.5 rounded-xl shrink-0 ${isSelected ? 'bg-white/20 text-white' : (item.iconBg || 'bg-emerald-100 text-emerald-800')}`}>
                       <Icon className="w-3.5 h-3.5" />
@@ -337,7 +361,7 @@ export default function AssistantWorkspace() {
                       <div className={`text-xs font-black truncate ${isSelected ? 'text-white' : 'text-slate-900 dark:text-white group-hover:text-[#14532D]'}`}>
                         {item.title}
                       </div>
-                      <div className="text-[10px] mt-0.5 opacity-80 text-slate-400">
+                      <div className="text-[10px] mt-0.5 opacity-80 text-slate-600 dark:text-slate-400 font-semibold">
                         {item.time}
                       </div>
                     </div>
@@ -346,9 +370,9 @@ export default function AssistantWorkspace() {
               })}
 
               {activityItems.length === 0 && (
-                <div className="rounded-2xl border border-dashed border-slate-200 dark:border-[#1F7A4D]/20 px-3 py-4 text-center">
-                  <MessageSquare className="w-4 h-4 mx-auto mb-1.5 text-slate-400" />
-                  <p className="text-[10px] font-bold text-slate-400">
+                <div className="rounded-2xl border border-dashed border-white/40 dark:border-[#1F7A4D]/30 bg-white/20 dark:bg-black/20 px-3 py-4 text-center">
+                  <MessageSquare className="w-4 h-4 mx-auto mb-1.5 text-slate-600 dark:text-slate-400" />
+                  <p className="text-[10px] font-bold text-slate-700 dark:text-slate-300">
                     Your conversations will appear here.
                   </p>
                 </div>
@@ -356,7 +380,7 @@ export default function AssistantWorkspace() {
             </div>
           </div>
 
-          {/* New Chat */}
+          {/* New Chat Button */}
           <button
             onClick={handleNewConsultation}
             className="w-full py-2.5 px-3 rounded-2xl bg-[#14532D] hover:bg-[#1F7A4D] text-white text-xs font-black flex items-center justify-center gap-1.5 shadow-lg transition-transform active:scale-98 cursor-pointer shrink-0"
@@ -365,9 +389,9 @@ export default function AssistantWorkspace() {
             <span>{t('workspace.newChat') || '+ New Chat'}</span>
           </button>
 
-          {/* Language + Theme + Profile */}
-          <div className="mt-auto pt-3 space-y-2 border-t border-slate-200 dark:border-[#1F7A4D]/20">
-            <div className="flex items-center justify-between px-3 py-2 rounded-2xl border border-slate-200 dark:border-[#1F7A4D]/20 bg-slate-50 dark:bg-slate-900 text-xs font-bold text-slate-800 dark:text-slate-200">
+          {/* Language + Theme + Farmer Profile */}
+          <div className="mt-auto pt-3 space-y-2 border-t border-white/30 dark:border-[#1F7A4D]/30">
+            <div className="flex items-center justify-between px-3 py-2 rounded-2xl border border-white/40 dark:border-[#1F7A4D]/30 bg-white/40 dark:bg-black/35 backdrop-blur-md text-xs font-bold text-slate-900 dark:text-slate-100 shadow-xs">
               <div className="flex items-center gap-2 min-w-0">
                 <Globe className="w-4 h-4 text-[#14532D] dark:text-emerald-400 shrink-0" />
                 <select
@@ -383,20 +407,26 @@ export default function AssistantWorkspace() {
                   ))}
                 </select>
               </div>
-              <button onClick={toggleTheme} className="p-1 rounded-xl hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 cursor-pointer shrink-0" title="Toggle theme">
+              <button onClick={toggleTheme} className="p-1 rounded-xl hover:bg-white/40 dark:hover:bg-slate-800 text-slate-800 dark:text-slate-200 cursor-pointer shrink-0" title="Toggle theme">
                 {isDark ? <Sun className="w-4 h-4 text-amber-500" /> : <Moon className="w-4 h-4" />}
               </button>
             </div>
 
-            <div className="p-2.5 rounded-2xl border border-slate-200 dark:border-[#1F7A4D]/20 bg-white dark:bg-[#091A13] flex items-center justify-between shadow-xs">
+            <div className="p-2.5 rounded-2xl border border-white/40 dark:border-[#1F7A4D]/30 bg-white/40 dark:bg-black/35 backdrop-blur-md flex items-center justify-between shadow-xs">
               <div className="flex items-center gap-2.5 min-w-0">
                 <div className="w-8 h-8 rounded-full bg-[#14532D] text-white font-black text-xs flex items-center justify-center shadow-sm shrink-0">F</div>
                 <div className="min-w-0">
                   <div className="text-xs font-extrabold text-[#14532D] dark:text-white leading-tight truncate">
                     {t('workspace.farmerName') || 'Farmer Ramesh'}
                   </div>
-                  <div className="text-[10px] text-slate-500 font-bold truncate max-w-[150px]">
-                    {locationLoading ? t('workspace.locating') || 'Locating...' : userLocation?.formattedLocation || locationError || 'Location unavailable'}
+                  <div className="text-[10px] text-slate-600 dark:text-slate-300 font-extrabold truncate max-w-[150px]">
+                    {locationLoading ? (
+                      <span className="animate-pulse">{t('workspace.locating') || 'Locating...'}</span>
+                    ) : userLocation?.formattedLocation ? (
+                      userLocation.formattedLocation
+                    ) : (
+                      <span className="text-amber-600 dark:text-amber-400">Location required</span>
+                    )}
                   </div>
                 </div>
               </div>
@@ -406,60 +436,46 @@ export default function AssistantWorkspace() {
         </div>
       </aside>
 
-      {/* ========================================== */}
-      {/* MAIN EXPANDED CENTER CONTENT AREA          */}
-      {/* ========================================== */}
-      <main className="flex-1 flex flex-col h-full min-w-0 relative overflow-hidden transition-all duration-300">
+      {/* ============================================================ */}
+      {/* 2. MAIN EXPANDED CENTER CONTENT AREA                          */}
+      {/* ============================================================ */}
+      <main className="flex-1 flex flex-col h-full min-w-0 relative z-10 overflow-hidden transition-all duration-300">
         
-        {/* Responsive Full-bleed Background Landscape Image */}
-        <div className="absolute inset-0 z-0 overflow-hidden">
-          <img
-            src="/AgriSphere.png"
-            alt="AgriSphere Landscape Visual"
-            className={`w-full h-full object-cover object-center filter transition-all duration-500 ease-in-out ${
-              isChatMode ? 'brightness-[0.35] blur-md scale-105' : 'brightness-[0.98] contrast-[1.03]'
-            }`}
-          />
-          <div className={`absolute inset-0 bg-gradient-to-t pointer-events-none transition-opacity duration-500 ${
-            isChatMode ? 'from-black/80 via-black/50 to-black/70' : 'from-black/40 via-transparent to-black/20'
-          }`} />
-        </div>
-
-        {/* Floating Top Header Overlay: Weather & Location */}
+        {/* Floating Top Header Bar: Hide/Reveal Toggle + Location & Weather Card */}
         <div className="relative z-30 flex items-center justify-between px-4 sm:px-8 py-3 shrink-0">
           
-          {/* Right Side: ONLY Weather & Real Location Card */}
+          {/* Left Controls: Hide/Reveal Sidebar & Mobile Drawer Buttons */}
+          <div className="flex items-center gap-2">
+            {/* Desktop Hide/Reveal Sidebar Toggle */}
+            <button
+              type="button"
+              onClick={() => setIsLeftNavOpen(prev => !prev)}
+              className="hidden lg:flex items-center gap-2 px-3.5 py-2 rounded-full bg-white/75 dark:bg-[#091A13]/75 backdrop-blur-xl border border-slate-200/80 dark:border-[#1F7A4D]/30 text-slate-800 dark:text-white text-xs font-black shadow-md hover:bg-emerald-50 dark:hover:bg-emerald-950/80 transition-all cursor-pointer shrink-0"
+              title={isLeftNavOpen ? "Hide Navigation (Ctrl+B)" : "Reveal Navigation (Ctrl+B)"}
+            >
+              {isLeftNavOpen ? (
+                <PanelLeftClose className="w-4 h-4 text-[#14532D] dark:text-emerald-400" />
+              ) : (
+                <PanelLeftOpen className="w-4 h-4 text-[#14532D] dark:text-emerald-400" />
+              )}
+              <span>{isLeftNavOpen ? 'Hide Menu' : 'Reveal Menu'}</span>
+            </button>
+
+            {/* Mobile Navigation Drawer Trigger */}
+            <button
+              type="button"
+              onClick={() => setMobileNavOpen(true)}
+              className="lg:hidden flex items-center gap-2 px-3.5 py-2 rounded-full bg-white/75 dark:bg-[#091A13]/75 backdrop-blur-xl border border-slate-200/80 dark:border-[#1F7A4D]/30 text-slate-800 dark:text-white text-xs font-black shadow-md hover:bg-emerald-50 dark:hover:bg-emerald-950/80 transition-all cursor-pointer shrink-0"
+              aria-label="Open mobile navigation menu"
+            >
+              <Menu className="w-4 h-4 text-[#14532D] dark:text-emerald-400" />
+              <span>Menu</span>
+            </button>
+          </div>
+
+          {/* Right Controls: Interactive Real Location & Weather Card */}
           <div className="flex items-center gap-3">
-            <div className="flex items-center gap-3 px-4 py-2 rounded-full bg-white/95 dark:bg-[#091A13]/95 backdrop-blur-md border border-slate-200 dark:border-[#1F7A4D]/30 shadow-xl text-slate-900 dark:text-white">
-              <div className="p-1.5 rounded-full bg-amber-100 text-amber-700 shrink-0">
-                <Sun className="w-4 h-4" />
-              </div>
-              <div>
-                <div className="text-xs font-black leading-none">
-                  {userLocation?.temp ? `${userLocation.temp}°C` : '28°C'}{' '}
-                  <span className="text-[10px] font-semibold text-slate-500 dark:text-slate-400">
-                    {userLocation?.condition || 'Clear Sky'}
-                  </span>
-                </div>
-                <div className="text-[9px] text-slate-500 dark:text-slate-400 font-extrabold mt-0.5 flex items-center gap-1">
-                  <MapPin className="w-2.5 h-2.5 text-[#14532D] dark:text-emerald-400 shrink-0" />
-                  {locationLoading ? (
-                    <span className="animate-pulse">{t('workspace.locating') || 'Locating...'}</span>
-                  ) : userLocation?.formattedLocation ? (
-                    <span className="truncate max-w-[140px] sm:max-w-none">{userLocation.formattedLocation}</span>
-                  ) : (
-                    <button
-                      onClick={loadLocation}
-                      className="text-red-600 dark:text-red-400 hover:underline cursor-pointer flex items-center gap-0.5"
-                      title="Retry fetching location"
-                    >
-                      <span>{t('workspace.locationUnavailable') || 'Location unavailable (Retry)'}</span>
-                      <RotateCw className="w-2.5 h-2.5" />
-                    </button>
-                  )}
-                </div>
-              </div>
-            </div>
+            <LocationSelectorDropdown variant="header" />
           </div>
         </div>
 
@@ -468,62 +484,39 @@ export default function AssistantWorkspace() {
         {/* ======================================================== */}
         {!isChatMode ? (
           /* STATE A — FARM HOME MODE */
-          <div className="flex-1 relative z-10 w-full min-h-0 overflow-y-auto px-4 sm:px-6 py-2 flex flex-col space-y-4">
+          <div className="flex-1 relative z-10 w-full min-h-0 overflow-y-auto no-scrollbar px-4 sm:px-8 md:px-12 py-3 flex flex-col justify-between space-y-4">
             
-            {/* Main Headline with Location Pill */}
-            <div className="max-w-4xl mx-auto w-full space-y-1.5 text-center sm:text-left pt-1 shrink-0">
-              <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2 mb-1">
-                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/20 backdrop-blur-md border border-emerald-400/40 text-emerald-300 text-[11px] font-black tracking-wider uppercase shadow-sm">
-                  <MapPin className="w-3 h-3 text-emerald-400" />
-                  {userLocation?.formattedLocation || 'Verified Agriculture Location'}
-                </span>
-                {userLocation?.temp && (
-                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-amber-500/20 backdrop-blur-md border border-amber-400/40 text-amber-200 text-[11px] font-black">
-                    <Sun className="w-3 h-3 text-amber-400" />
-                    {userLocation.temp}°C {userLocation.condition}
-                  </span>
-                )}
+            {/* HERO SECTION: LOCATION BADGE + WHITE HIGH-CONTRAST HEADING + SUBTITLE */}
+            <div className="max-w-3xl w-full space-y-2 text-left pt-2 sm:pt-4 shrink-0">
+              
+              {/* Interactive Location Selector Badge */}
+              <div className="flex flex-wrap items-center gap-2 mb-1">
+                <LocationSelectorDropdown variant="hero" />
               </div>
-              <h1 className="text-2xl sm:text-3xl lg:text-4xl font-black text-[#14532D] tracking-tight leading-tight drop-shadow-xl">
+
+              {/* White High-Contrast Hero Heading */}
+              <h1 className="text-3xl sm:text-4xl lg:text-5xl font-black text-white tracking-tight leading-[1.15] drop-shadow-[0_4px_16px_rgba(0,0,0,0.9)]">
                 {t('workspace.heroTitle') || 'Your Farm.'}{' '}
-                <span className="text-[#14532D] drop-shadow-md">
+                <span className="text-white drop-shadow-[0_4px_16px_rgba(0,0,0,0.9)]">
                   {t('workspace.heroTitleHighlight') || 'Smarter Decisions.'}
                 </span>
               </h1>
-              <p className="text-xs sm:text-sm font-bold text-[#14532D] leading-relaxed drop-shadow-md max-w-xl">
+
+              {/* Subtitle */}
+              <p className="text-sm sm:text-base font-bold text-white/95 leading-relaxed drop-shadow-[0_2px_10px_rgba(0,0,0,0.9)] max-w-xl">
                 {t('workspace.heroSub') || 'AI-powered agricultural guidance for healthier crops and higher yields.'}
               </p>
             </div>
 
-            {/* Interactive Telemetry Canvas Hotspots */}
-            <div className="flex-1 min-h-[220px] sm:min-h-[280px] relative flex items-center justify-center py-2">
-              <FarmCanvas
-                isInteractive={true}
-                onSelectTelemetry={(m) => {
-                  handleSend({ queryText: `Tell me about ${m.label} on my farm.`, language });
-                }}
-              />
-            </div>
+            {/* Clean Center Spacer (Exposes the Golden Sunset Landscape & Sun) */}
+            <div className="flex-1 min-h-[120px] sm:min-h-[160px]" />
 
-            {/* Suggested Farming Topics Dock Chips */}
+            {/* Bottom Chat Composer Container */}
             <div className="max-w-4xl mx-auto w-full shrink-0 space-y-2 pb-2">
-              <div className="flex items-center gap-2 overflow-x-auto no-scrollbar py-1">
-                {SUGGESTED_TOPICS.map((topic, idx) => (
-                  <button
-                    key={idx}
-                    onClick={() => handleSend({ queryText: topic.query, language })}
-                    className="px-3.5 py-2 rounded-2xl bg-white/90 dark:bg-[#091A13]/90 backdrop-blur-md border border-[#1F7A4D]/25 hover:border-[#1F7A4D] text-slate-800 dark:text-slate-100 text-xs font-bold whitespace-nowrap shadow-md hover:scale-102 transition-transform active:scale-95 cursor-pointer shrink-0"
-                  >
-                    🌱 {topic.label}
-                  </button>
-                ))}
-              </div>
-
-              {/* Sticky Bottom Composer */}
               <ChatComposer onSend={handleSend} isLoading={isLoading} />
               
-              <div className="text-center font-['Playfair_Display',serif] italic text-xs font-black text-white drop-shadow-lg pt-1">
-                "Better Farming Brighter Tomorrow"
+              <div className="text-center font-['Playfair_Display',serif] italic text-xs font-extrabold text-white/90 drop-shadow-[0_2px_8px_rgba(0,0,0,0.85)] pt-1">
+                "Better Farming, Brighter Tomorrow"
               </div>
             </div>
 
@@ -531,7 +524,7 @@ export default function AssistantWorkspace() {
         ) : (
           /* STATE B — DEDICATED CHAT MODE FOREGROUND PANEL */
           <div className="flex-1 relative z-20 w-full h-full min-h-0 flex flex-col max-w-4xl mx-auto px-2 sm:px-4 pb-3">
-            <div className="flex-1 flex flex-col h-full rounded-3xl backdrop-blur-2xl bg-slate-950/70 border border-white/15 shadow-2xl overflow-hidden transition-all duration-300">
+            <div className="flex-1 flex flex-col h-full rounded-3xl backdrop-blur-2xl bg-slate-950/75 border border-white/15 shadow-2xl overflow-hidden transition-all duration-300">
               
               {/* Chat Mode Panel Header */}
               <div className="px-4 sm:px-6 py-3 border-b border-white/10 flex items-center justify-between bg-black/40 shrink-0">
@@ -600,7 +593,134 @@ export default function AssistantWorkspace() {
 
       </main>
 
+      {/* ============================================================ */}
+      {/* 3. MOBILE NAVIGATION DRAWER                                   */}
+      {/* ============================================================ */}
+      {mobileNavOpen && (
+        <div className="fixed inset-0 z-50 lg:hidden">
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-xs" onClick={() => setMobileNavOpen(false)} />
+          <div className="absolute inset-y-0 left-0 w-80 max-w-[88vw] bg-white/90 dark:bg-[#091A13]/90 backdrop-blur-2xl flex flex-col p-4 justify-between shadow-2xl z-50 overflow-y-auto space-y-4">
+            
+            <div className="space-y-4 flex-1 flex flex-col">
+              {/* Drawer Header */}
+              <div className="flex items-center justify-between border-b border-slate-200 dark:border-[#1F7A4D]/20 pb-3 shrink-0">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-lg overflow-hidden">
+                    <AgriSphereLogo className="w-full h-full" />
+                  </div>
+                  <span className="font-black text-base text-[#14532D] dark:text-white">Agri<span className="text-emerald-500">Sphere</span></span>
+                </div>
+                <button onClick={() => setMobileNavOpen(false)} className="p-1 rounded-xl text-slate-500">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Navigation Items */}
+              <nav className="space-y-1 shrink-0">
+                <Link to="/" onClick={() => setMobileNavOpen(false)} className={`flex items-center gap-3 px-3.5 py-2.5 rounded-2xl text-xs font-black ${location.pathname === '/' ? 'bg-[#14532D] text-white' : 'text-slate-700 dark:text-slate-200 hover:bg-[#14532D]/10'}`}>
+                  <HomeIcon className="w-4 h-4" />
+                  <span>{t('workspace.home') || 'Home'}</span>
+                </Link>
+                <Link to="/assistant" onClick={() => setMobileNavOpen(false)} className={`flex items-center gap-3 px-3.5 py-2.5 rounded-2xl text-xs font-black ${location.pathname === '/assistant' ? 'bg-[#14532D] text-white' : 'text-slate-700 dark:text-slate-200 hover:bg-[#14532D]/10'}`}>
+                  <MessageSquare className="w-4 h-4" />
+                  <span>{t('workspace.assistant') || 'Assistant'}</span>
+                </Link>
+                <Link to="/dashboard" onClick={() => setMobileNavOpen(false)} className={`flex items-center gap-3 px-3.5 py-2.5 rounded-2xl text-xs font-black ${location.pathname === '/dashboard' ? 'bg-[#14532D] text-white' : 'text-slate-700 dark:text-slate-200 hover:bg-[#14532D]/10'}`}>
+                  <Activity className="w-4 h-4" />
+                  <span>{t('nav.dashboard') || 'Dashboard'}</span>
+                </Link>
+                <Link to="/crops" onClick={() => setMobileNavOpen(false)} className={`flex items-center gap-3 px-3.5 py-2.5 rounded-2xl text-xs font-black ${location.pathname === '/crops' ? 'bg-[#14532D] text-white' : 'text-slate-700 dark:text-slate-200 hover:bg-[#14532D]/10'}`}>
+                  <Grid className="w-4 h-4" />
+                  <span>{t('nav.crops') || 'Crops'}</span>
+                </Link>
+                <Link to="/consultations" onClick={() => setMobileNavOpen(false)} className={`flex items-center gap-3 px-3.5 py-2.5 rounded-2xl text-xs font-black ${location.pathname === '/consultations' ? 'bg-[#14532D] text-white' : 'text-slate-700 dark:text-slate-200 hover:bg-[#14532D]/10'}`}>
+                  <HistoryIcon className="w-4 h-4" />
+                  <span>{t('nav.consultations') || 'Consultations'}</span>
+                </Link>
+                <Link to="/learn" onClick={() => setMobileNavOpen(false)} className={`flex items-center gap-3 px-3.5 py-2.5 rounded-2xl text-xs font-black ${location.pathname === '/learn' ? 'bg-[#14532D] text-white' : 'text-slate-700 dark:text-slate-200 hover:bg-[#14532D]/10'}`}>
+                  <BookOpen className="w-4 h-4" />
+                  <span>{t('nav.learn') || 'Learn'}</span>
+                </Link>
+              </nav>
+
+              <hr className="border-slate-200 dark:border-[#1F7A4D]/20 my-2 shrink-0" />
+
+              {/* Recent Section (No View All) */}
+              <div className="space-y-2 pt-1 shrink-0">
+                <div className="flex items-center justify-between px-1">
+                  <span className="text-xs font-black uppercase text-slate-900 dark:text-white">{t('workspace.recent') || 'Recent'}</span>
+                  {activityItems.length > 0 && (
+                    <button onClick={handleClearRecents} className="text-[11px] font-black text-red-600 dark:text-red-400 hover:underline">Clear</button>
+                  )}
+                </div>
+                <div className="space-y-1.5">
+                  {activityItems.slice(0, 3).map(item => (
+                    <button
+                      key={item.id}
+                      onClick={() => handleSelectActivity(item)}
+                      className="w-full text-left p-2 rounded-2xl bg-white/80 dark:bg-slate-900/80 border border-slate-200 dark:border-[#1F7A4D]/20 text-slate-900 dark:text-slate-100 flex items-center gap-2.5 cursor-pointer"
+                    >
+                      <div className={`p-1.5 rounded-xl shrink-0 ${item.iconBg || 'bg-emerald-100 text-emerald-800'}`}>
+                        <Sprout className="w-3.5 h-3.5" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="text-xs font-black truncate">{item.title}</div>
+                        <div className="text-[10px] text-slate-500 mt-0.5">{item.time}</div>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* New Chat Button */}
+              <div className="flex items-center gap-2 shrink-0">
+                <button onClick={handleNewConsultation} className="flex-1 py-2.5 px-3 rounded-2xl bg-[#14532D] text-white text-xs font-black flex items-center justify-center gap-1 shadow-lg cursor-pointer">
+                  <Plus className="w-4 h-4" />
+                  <span>{t('workspace.newChat') || '+ New Chat'}</span>
+                </button>
+              </div>
+
+              {/* Profile & Controls Footer */}
+              <div className="space-y-2 border-t border-slate-200 dark:border-[#1F7A4D]/20 pt-3 mt-auto shrink-0">
+                <div className="flex items-center justify-between px-3 py-2 rounded-2xl border border-slate-200 dark:border-[#1F7A4D]/20 bg-white/70 dark:bg-slate-900/70 text-xs font-bold text-slate-800 dark:text-slate-200">
+                  <div className="flex items-center gap-2">
+                    <Globe className="w-4 h-4 text-[#14532D] dark:text-emerald-400" />
+                    <select value={language} onChange={(e) => setLanguage(e.target.value)} className="bg-transparent font-bold text-xs pr-1">
+                      {supportedLanguages.map(l => (
+                        <option key={l.code} value={l.code}>{l.flag} {l.nativeName}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <button onClick={toggleTheme} className="p-1 rounded-xl text-slate-700 dark:text-slate-300 cursor-pointer">
+                    {isDark ? <Sun className="w-4 h-4 text-amber-500" /> : <Moon className="w-4 h-4" />}
+                  </button>
+                </div>
+
+                <div className="p-2.5 rounded-2xl border border-slate-200 dark:border-[#1F7A4D]/20 bg-white/80 dark:bg-[#091A13]/80 flex items-center justify-between">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <div className="w-8 h-8 rounded-full bg-[#14532D] text-white font-black text-xs flex items-center justify-center shrink-0">F</div>
+                    <div className="min-w-0">
+                      <div className="text-xs font-extrabold text-[#14532D] dark:text-white leading-tight truncate">{t('workspace.farmerName') || 'Farmer Ramesh'}</div>
+                      <div className="text-[10px] text-slate-500 font-bold truncate max-w-[140px]">
+                        {locationLoading ? (
+                          <span className="animate-pulse">{t('workspace.locating') || 'Locating...'}</span>
+                        ) : userLocation?.formattedLocation ? (
+                          userLocation.formattedLocation
+                        ) : (
+                          'Location required'
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                  <Settings className="w-4 h-4 text-[#14532D] dark:text-emerald-400 shrink-0" />
+                </div>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }
-

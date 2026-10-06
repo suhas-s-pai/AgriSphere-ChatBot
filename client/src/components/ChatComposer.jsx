@@ -227,10 +227,10 @@ export default function ChatComposer({ onSend, isLoading }) {
 
       {/* FLOATING FARM COMMAND CONSOLE */}
       <form onSubmit={handleSubmit} className="w-full">
-        <div className={`p-2.5 sm:p-3 rounded-full bg-white dark:bg-[#091A13] border transition-all duration-300 shadow-2xl flex items-center gap-2 ${
+        <div className={`p-2 sm:p-2.5 rounded-full bg-white/95 dark:bg-[#091A13]/95 backdrop-blur-2xl border transition-all duration-300 shadow-2xl flex items-center gap-2 ${
           isFocused
-            ? 'border-[#1F7A4D] ring-4 ring-[#1F7A4D]/15 shadow-emerald-900/10'
-            : 'border-[#1F7A4D]/25 hover:border-[#1F7A4D]/50'
+            ? 'border-emerald-500 ring-4 ring-emerald-500/20 shadow-emerald-900/20'
+            : 'border-white/50 dark:border-[#1F7A4D]/40 hover:border-emerald-500/50'
         }`}>
           
           {/* Hidden File Inputs */}
@@ -260,7 +260,7 @@ export default function ChatComposer({ onSend, isLoading }) {
               onFocus={() => setIsFocused(true)}
               onBlur={() => setIsFocused(false)}
               placeholder={t('composer.placeholder') || 'Ask AgriSphere about your farm...'}
-              className="w-full bg-transparent text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:outline-none text-xs sm:text-sm font-semibold"
+              className="w-full bg-transparent text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:outline-none text-xs sm:text-sm font-bold"
             />
           </div>
 
@@ -269,34 +269,34 @@ export default function ChatComposer({ onSend, isLoading }) {
             <button
               type="button"
               onClick={() => cameraInputRef.current?.click()}
-              className="px-2.5 py-1.5 rounded-full text-slate-600 dark:text-slate-300 hover:text-[#1F7A4D] hover:bg-[#1F7A4D]/10 transition-colors flex items-center gap-1.5 text-xs font-extrabold"
+              className="px-2.5 py-1.5 rounded-full text-slate-700 dark:text-slate-200 hover:text-[#1F7A4D] hover:bg-emerald-500/10 transition-colors flex items-center gap-1.5 text-xs font-extrabold cursor-pointer"
               title={t('composer.camera')}
             >
-              <Camera className="w-4 h-4 text-[#1F7A4D]" />
+              <Camera className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
               <span className="hidden sm:inline">{t('composer.camera')}</span>
             </button>
 
             <button
               type="button"
               onClick={() => fileInputRef.current?.click()}
-              className="px-2.5 py-1.5 rounded-full text-slate-600 dark:text-slate-300 hover:text-[#1F7A4D] hover:bg-[#1F7A4D]/10 transition-colors flex items-center gap-1.5 text-xs font-extrabold"
+              className="px-2.5 py-1.5 rounded-full text-slate-700 dark:text-slate-200 hover:text-[#1F7A4D] hover:bg-emerald-500/10 transition-colors flex items-center gap-1.5 text-xs font-extrabold cursor-pointer"
               title={t('composer.upload')}
             >
-              <FolderPlus className="w-4 h-4 text-[#1F7A4D]" />
+              <FolderPlus className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
               <span className="hidden sm:inline">{t('composer.upload')}</span>
             </button>
 
             <button
               type="button"
               onClick={toggleRecording}
-              className={`px-2.5 py-1.5 rounded-full transition-all flex items-center gap-1.5 text-xs font-extrabold ${
+              className={`px-2.5 py-1.5 rounded-full transition-all flex items-center gap-1.5 text-xs font-extrabold cursor-pointer ${
                 isRecording
-                  ? 'bg-[#1F7A4D] text-white shadow-md'
-                  : 'text-slate-600 dark:text-slate-300 hover:text-[#1F7A4D] hover:bg-[#1F7A4D]/10'
+                  ? 'bg-emerald-600 text-white shadow-md'
+                  : 'text-slate-700 dark:text-slate-200 hover:text-[#1F7A4D] hover:bg-emerald-500/10'
               }`}
               title={`Voice (${langLabel})`}
             >
-              {isRecording ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4 text-[#1F7A4D]" />}
+              {isRecording ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />}
               <span className="hidden sm:inline">{t('composer.voice')}</span>
             </button>
 
@@ -305,7 +305,7 @@ export default function ChatComposer({ onSend, isLoading }) {
               type="submit"
               disabled={(!text.trim() && !imagePreview) || isLoading}
               aria-label={t('composer.send')}
-              className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-[#1F7A4D] hover:bg-[#14532D] disabled:opacity-40 text-white flex items-center justify-center shadow-lg transition-transform hover:scale-105 shrink-0"
+              className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-[#1F7A4D] hover:bg-[#14532D] disabled:opacity-40 text-white flex items-center justify-center shadow-lg transition-transform hover:scale-105 cursor-pointer shrink-0"
             >
               <Send className="w-4 h-4" />
             </button>
@@ -314,17 +314,18 @@ export default function ChatComposer({ onSend, isLoading }) {
         </div>
       </form>
 
-      {/* CATEGORY PILL CHIPS (Directly below composer) */}
-      <div className="flex items-center justify-center gap-2 flex-wrap">
+      {/* CATEGORY PILL CHIPS (Visually secondary quick actions directly below composer) */}
+      <div className="flex items-center justify-center gap-2 flex-wrap pt-1">
         {categoryChips.map((chip) => {
           const Icon = chip.icon;
           return (
             <button
               key={chip.key}
+              type="button"
               onClick={() => handleChipClick(chip.query)}
-              className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-white dark:bg-[#091A13] border border-[#1F7A4D]/20 hover:border-[#1F7A4D] text-slate-800 dark:text-slate-200 hover:text-[#1F7A4D] dark:hover:text-emerald-400 text-xs font-extrabold shadow-sm transition-all hover:scale-102"
+              className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-white/90 dark:bg-black/60 backdrop-blur-md border border-white/60 dark:border-emerald-500/30 text-slate-800 dark:text-white hover:border-emerald-500 hover:bg-white text-xs font-extrabold shadow-md transition-all hover:scale-105 cursor-pointer"
             >
-              <Icon className="w-3.5 h-3.5 text-[#1F7A4D]" />
+              <Icon className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
               <span>{chip.label}</span>
             </button>
           );

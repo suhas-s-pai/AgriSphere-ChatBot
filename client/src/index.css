@@ -39,3 +39,67 @@ body {
 ::-webkit-scrollbar-thumb:hover {
   background: #08670b;
 }
+
+/* Cinematic Welcome Page Keyframe Animations */
+@keyframes cinematicDrift {
+  0% {
+    transform: scale(1.04) translate3d(0, 0, 0);
+  }
+  50% {
+    transform: scale(1.08) translate3d(-0.6%, -0.4%, 0);
+  }
+  100% {
+    transform: scale(1.04) translate3d(0, 0, 0);
+  }
+}
+
+@keyframes lightSweep {
+  0% {
+    opacity: 0.35;
+    transform: translateX(-4%) translateY(-2%) scale(1);
+  }
+  50% {
+    opacity: 0.65;
+    transform: translateX(3%) translateY(2%) scale(1.04);
+  }
+  100% {
+    opacity: 0.35;
+    transform: translateX(-4%) translateY(-2%) scale(1);
+  }
+}
+
+@keyframes cropSway {
+  0% {
+    transform: rotate(0deg) translate3d(0, 0, 0);
+  }
+  50% {
+    transform: rotate(1.2deg) translate3d(3px, -1px, 0);
+  }
+  100% {
+    transform: rotate(0deg) translate3d(0, 0, 0);
+  }
+}
+
+.animate-cinematic-drift {
+  animation: cinematicDrift 24s ease-in-out infinite alternate;
+  will-change: transform;
+}
+
+.animate-light-sweep {
+  animation: lightSweep 16s ease-in-out infinite alternate;
+  will-change: transform, opacity;
+}
+
+.animate-crop-sway {
+  animation: cropSway 8s ease-in-out infinite alternate;
+  transform-origin: bottom center;
+  will-change: transform;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-cinematic-drift,
+  .animate-light-sweep,
+  .animate-crop-sway {
+    animation: none !important;
+  }
+}
