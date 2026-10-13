@@ -29,6 +29,7 @@ export default function ChatInterface({
           ...(result ? [{ id: 'ast-legacy-result', role: 'assistant', result }] : [])
         ]
       : [];
+  const latestUserMessage = messageList.filter((item) => item.role === 'user').slice(-1)[0]?.content || '';
 
   if (messageList.length === 0 && !isLoading && !error) return null;
 
@@ -42,8 +43,11 @@ export default function ChatInterface({
             <div key={msg.id || `user-${idx}`} className="flex justify-end my-2">
               <div className="max-w-xl p-3.5 sm:p-4 rounded-3xl rounded-tr-none bg-[#1F7A4D] text-white font-bold text-xs sm:text-sm shadow-md space-y-2">
                 {msg.image && (
-                  <div className="w-48 h-36 rounded-2xl overflow-hidden bg-black/20 border border-white/20">
-                    <img src={msg.image} alt="Crop upload" className="w-full h-full object-cover" />
+                  <div className="space-y-1">
+                    <div className="w-48 h-36 rounded-2xl overflow-hidden bg-black/20 border border-white/20">
+                      <img src={msg.image} alt="Your uploaded crop photo" className="w-full h-full object-cover" />
+                    </div>
+                    <span className="text-[10px] font-semibold text-white/80">Your uploaded photo</span>
                   </div>
                 )}
                 {msg.content && <p className="whitespace-pre-wrap leading-relaxed">{msg.content}</p>}
@@ -109,7 +113,9 @@ export default function ChatInterface({
                 </div>
               </div>
               <p className="text-[11px] text-slate-500 dark:text-slate-400 font-semibold mt-0.5">
-                {t('chat.evaluating') || 'Evaluating crop health, soil parameters & agricultural guidance...'}
+                {/\b(show|display|image|images|photo|photos|picture|pictures|gallery|visual|look like)\b/i.test(latestUserMessage)
+                  ? 'Searching agricultural reference images...'
+                  : (t('chat.evaluating') || 'Evaluating crop health, soil parameters & agricultural guidance...')}
               </p>
             </div>
           </div>

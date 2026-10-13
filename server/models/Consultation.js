@@ -1,6 +1,11 @@
 const mongoose = require('mongoose');
 
 const ConsultationSchema = new mongoose.Schema({
+  conversationId: {
+    type: String,
+    default: null,
+    index: true
+  },
   category: {
     type: String,
     required: true,

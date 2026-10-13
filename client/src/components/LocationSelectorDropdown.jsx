@@ -11,7 +11,6 @@ export default function LocationSelectorDropdown({ variant = 'hero' }) {
     permissionDenied,
     setMode,
     refreshLocation,
-    requestLocation
   } = useLocationContext();
 
   const [isOpen, setIsOpen] = useState(false);
@@ -69,7 +68,7 @@ export default function LocationSelectorDropdown({ variant = 'hero' }) {
             ) : location?.formattedLocation ? (
               location.formattedLocation
             ) : permissionDenied ? (
-              'Location Access Required'
+              'Location unavailable'
             ) : (
               'Location Unavailable'
             )}
@@ -82,7 +81,7 @@ export default function LocationSelectorDropdown({ variant = 'hero' }) {
         <button
           type="button"
           onClick={() => setIsOpen(prev => !prev)}
-          className="flex items-center gap-3 px-4 py-2 rounded-full bg-white/80 dark:bg-[#091A13]/85 backdrop-blur-xl border border-slate-200/80 dark:border-[#1F7A4D]/30 shadow-xl text-slate-900 dark:text-white hover:border-emerald-500/50 transition-all cursor-pointer select-none"
+          className="flex items-center gap-2 sm:gap-3 px-2.5 sm:px-4 py-2 rounded-full bg-white/80 dark:bg-[#091A13]/85 backdrop-blur-xl border border-slate-200/80 dark:border-[#1F7A4D]/30 shadow-xl text-slate-900 dark:text-white hover:border-emerald-500/50 transition-all cursor-pointer select-none max-w-full"
           title="Click to switch location mode or view details"
         >
           {isGlobal ? (
@@ -95,18 +94,18 @@ export default function LocationSelectorDropdown({ variant = 'hero' }) {
             </div>
           )}
 
-          <div className="text-left">
+          <div className="text-left min-w-0">
             <div className="text-xs font-black leading-none flex items-center gap-1.5">
-              <span>{isGlobal ? 'Global Mode' : location?.temp ? `${location.temp}°C` : '28°C'}</span>
+              <span>{isGlobal ? 'Global Mode' : location?.temp != null ? `${location.temp}°C` : loading ? 'Locating...' : 'Weather unavailable'}</span>
               {!isGlobal && (
                 <span className="text-[10px] font-semibold text-slate-500 dark:text-slate-400">
-                  {location?.condition || 'Clear Sky'}
+                  {location?.condition || (loading ? 'Updating...' : 'Weather unavailable')}
                 </span>
               )}
             </div>
             <div className="text-[9px] text-slate-500 dark:text-slate-400 font-extrabold mt-0.5 flex items-center gap-1">
               <span className="truncate max-w-[140px] sm:max-w-none">
-                {loading && isCurrent ? 'Detecting...' : isGlobal ? 'Global Agriculture' : location?.formattedLocation || 'Location required'}
+                {loading && isCurrent ? 'Detecting...' : isGlobal ? 'Global Agriculture' : location?.formattedLocation || 'Location unavailable'}
               </span>
               <ChevronDown className="w-2.5 h-2.5 text-slate-400" />
             </div>
@@ -148,7 +147,14 @@ export default function LocationSelectorDropdown({ variant = 'hero' }) {
               </div>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center justify-between">
-                  <span className="text-xs font-black">Current Location</span>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-xs font-black">Current Location</span>
+                    {isCurrent && location?.isGpsVerified && (
+                      <span className="text-[9px] font-black uppercase text-emerald-700 dark:text-emerald-300 bg-emerald-100 dark:bg-emerald-950/80 px-1.5 py-0.5 rounded-full border border-emerald-300 dark:border-emerald-700/50">
+                        GPS verified
+                      </span>
+                    )}
+                  </div>
                   {isCurrent && <Check className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />}
                 </div>
                 <div className="text-[10px] font-semibold text-slate-600 dark:text-slate-400 truncate mt-0.5">
@@ -156,10 +162,10 @@ export default function LocationSelectorDropdown({ variant = 'hero' }) {
                     <span className="animate-pulse">Detecting your current location...</span>
                   ) : location?.formattedLocation ? (
                     location.formattedLocation
-                  ) : permissionDenied ? (
-                    <span className="text-amber-600 dark:text-amber-400">Permission denied — click to retry</span>
+                  ) : error ? (
+                    <span className="text-amber-600 dark:text-amber-400">Location unavailable — use Retry below</span>
                   ) : (
-                    'Real GPS device location'
+                    'Location unavailable'
                   )}
                 </div>
               </div>
@@ -190,6 +196,12 @@ export default function LocationSelectorDropdown({ variant = 'hero' }) {
             </button>
           </div>
 
+          {error && isCurrent && (
+            <p role="status" className="rounded-xl bg-amber-50 dark:bg-amber-950/30 px-2.5 py-2 text-[10px] font-semibold leading-relaxed text-amber-800 dark:text-amber-200">
+              {error}
+            </p>
+          )}
+
           {/* Action Footer: Refresh Current Location */}
           <div className="pt-1 border-t border-slate-200/60 dark:border-white/10">
             <button
@@ -199,7 +211,7 @@ export default function LocationSelectorDropdown({ variant = 'hero' }) {
               className="w-full py-1.5 px-2.5 rounded-xl bg-slate-100 dark:bg-white/10 hover:bg-slate-200 dark:hover:bg-white/20 text-slate-800 dark:text-slate-200 text-xs font-bold flex items-center justify-center gap-1.5 transition-colors cursor-pointer disabled:opacity-50"
             >
               <RefreshCw className={`w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 ${loading && isCurrent ? 'animate-spin' : ''}`} />
-              <span>{loading && isCurrent ? 'Refreshing GPS...' : 'Refresh current location'}</span>
+              <span>{loading && isCurrent ? 'Refreshing GPS...' : error && isCurrent ? 'Retry location' : 'Refresh current location'}</span>
             </button>
           </div>
 

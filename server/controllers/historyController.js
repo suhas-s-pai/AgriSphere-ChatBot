@@ -3,7 +3,7 @@ const { getStatus, memoryStore } = require('../config/db');
 
 exports.getHistory = async (req, res, next) => {
   try {
-    const { category, search, limit = 50 } = req.query;
+    const { category, search, conversationId, limit = 50 } = req.query;
     const { isConnected } = getStatus();
 
     let consultations = [];
@@ -11,6 +11,7 @@ exports.getHistory = async (req, res, next) => {
     if (isConnected) {
       const filter = {};
       if (category && category !== 'ALL') filter.category = category;
+      if (conversationId) filter.conversationId = conversationId;
       if (search) {
         filter.$or = [
           { crop: { $regex: search, $options: 'i' } },
@@ -24,6 +25,9 @@ exports.getHistory = async (req, res, next) => {
       consultations = [...memoryStore.scans];
       if (category && category !== 'ALL') {
         consultations = consultations.filter(s => s.category === category);
+      }
+      if (conversationId) {
+        consultations = consultations.filter(s => s.conversationId === conversationId);
       }
       if (search) {
         const queryStr = search.toLowerCase();
@@ -76,6 +80,114 @@ exports.getScanById = async (req, res, next) => {
       success: true,
       consultation,
       scan: consultation
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+/**
+ * Permanently deletes all consultation history records.
+ * Clears MongoDB collection and in-memory store.
+ */
+exports.clearAllHistory = async (req, res, next) => {
+  try {
+    const { isConnected } = getStatus();
+    let deletedCount = 0;
+
+    if (isConnected) {
+      try {
+        const delResult = await Consultation.deleteMany({});
+        deletedCount = delResult.deletedCount || 0;
+      } catch (dbErr) {
+        console.warn('⚠️ Error clearing consultations from MongoDB:', dbErr.message);
+      }
+    }
+
+    const memoryCount = memoryStore.scans.length;
+    memoryStore.scans = [];
+
+    console.log(`✅ Permanently cleared all consultation records (DB: ${deletedCount}, Memory: ${memoryCount}).`);
+    return res.json({
+      success: true,
+      message: 'All consultation history cleared permanently.',
+      deletedCount: deletedCount || memoryCount
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+/**
+ * Permanently deletes all records belonging to a specific conversation.
+ */
+exports.deleteConversationHistory = async (req, res, next) => {
+  try {
+    const { conversationId } = req.params;
+    if (!conversationId) {
+      return res.status(400).json({ success: false, message: 'Conversation ID is required.' });
+    }
+
+    const { isConnected } = getStatus();
+    let deletedCount = 0;
+
+    if (isConnected) {
+      try {
+        const delResult = await Consultation.deleteMany({
+          $or: [
+            { conversationId },
+            { _id: conversationId }
+          ]
+        });
+        deletedCount = delResult.deletedCount || 0;
+      } catch (dbErr) {
+        console.warn('⚠️ Error deleting conversation from MongoDB:', dbErr.message);
+      }
+    }
+
+    const initialMemCount = memoryStore.scans.length;
+    memoryStore.scans = memoryStore.scans.filter(
+      s => s.conversationId !== conversationId && s._id.toString() !== conversationId
+    );
+    const memDeleted = initialMemCount - memoryStore.scans.length;
+
+    console.log(`✅ Permanently deleted conversation ${conversationId} records (DB: ${deletedCount}, Memory: ${memDeleted}).`);
+    return res.json({
+      success: true,
+      message: `Conversation ${conversationId} deleted permanently.`,
+      deletedCount: deletedCount || memDeleted
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+/**
+ * Permanently deletes a single consultation entry by ID.
+ */
+exports.deleteHistoryById = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { isConnected } = getStatus();
+
+    if (isConnected) {
+      try {
+        await Consultation.findByIdAndDelete(id);
+      } catch (err) {
+        // Fall back to deleting by conversationId or string _id
+        await Consultation.deleteMany({
+          $or: [{ _id: id }, { conversationId: id }]
+        });
+      }
+    }
+
+    memoryStore.scans = memoryStore.scans.filter(
+      s => s._id.toString() !== id && s.conversationId !== id
+    );
+
+    return res.json({
+      success: true,
+      message: 'Consultation deleted permanently.'
     });
   } catch (err) {
     next(err);

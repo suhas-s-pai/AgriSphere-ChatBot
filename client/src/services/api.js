@@ -7,29 +7,19 @@ const client = axios.create({
   headers: {
     'Content-Type': 'application/json'
   },
-  timeout: 20000
+  timeout: 35000 // 35s timeout to allow resilient network responses without early truncation
 });
 
 export const analyzeContent = async (payload) => {
-  const startTime = Date.now();
   try {
-    // payload can be string or object { queryText, content, message, image, mode, language }
     const body = typeof payload === 'string'
       ? { message: payload, queryText: payload, content: payload }
       : { message: payload.queryText || payload.message || payload.content, queryText: payload.queryText || payload.message, ...payload };
     const res = await client.post('/analyze', body);
-    const elapsed = Date.now() - startTime;
-    if (elapsed < 1000) {
-      await new Promise(resolve => setTimeout(resolve, 1000 - elapsed));
-    }
     const data = res.data;
     console.log('API RESPONSE:', data);
     return data;
   } catch (err) {
-    const elapsed = Date.now() - startTime;
-    if (elapsed < 1000) {
-      await new Promise(resolve => setTimeout(resolve, 1000 - elapsed));
-    }
     if (err.response && err.response.data) {
       console.log('API RESPONSE (ERROR DATA):', err.response.data);
       return err.response.data;
@@ -55,6 +45,36 @@ export const getScanDetails = async (id) => {
     return res.data;
   } catch (err) {
     throw new Error(err.message || 'Unable to fetch consultation details.');
+  }
+};
+
+export const clearHistoryApi = async () => {
+  try {
+    const res = await client.delete('/history');
+    return res.data;
+  } catch (err) {
+    console.error('Failed to clear all history:', err.message);
+    throw new Error(err.response?.data?.message || err.message || 'Failed to clear consultation history.');
+  }
+};
+
+export const deleteConversationApi = async (conversationId) => {
+  try {
+    const res = await client.delete(`/history/conversation/${conversationId}`);
+    return res.data;
+  } catch (err) {
+    console.error(`Failed to delete conversation ${conversationId}:`, err.message);
+    throw new Error(err.response?.data?.message || err.message || 'Failed to delete conversation.');
+  }
+};
+
+export const deleteConsultationApi = async (id) => {
+  try {
+    const res = await client.delete(`/history/${id}`);
+    return res.data;
+  } catch (err) {
+    console.error(`Failed to delete consultation ${id}:`, err.message);
+    throw new Error(err.response?.data?.message || err.message || 'Failed to delete consultation record.');
   }
 };
 

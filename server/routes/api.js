@@ -2,7 +2,13 @@ const express = require('express');
 const router = express.Router();
 
 const { analyzeContent } = require('../controllers/analyzeController');
-const { getHistory, getScanById } = require('../controllers/historyController');
+const {
+  getHistory,
+  getScanById,
+  clearAllHistory,
+  deleteConversationHistory,
+  deleteHistoryById
+} = require('../controllers/historyController');
 const { getDashboardStats } = require('../controllers/dashboardController');
 const { submitFeedback } = require('../controllers/feedbackController');
 const { analyzeLimiter } = require('../middleware/rateLimiter');
@@ -28,6 +34,9 @@ router.post('/analyze', analyzeLimiter, analyzeContent);
 // History / Consultation Audit Routes
 router.get('/history', getHistory);
 router.get('/history/:id', getScanById);
+router.delete('/history/conversation/:conversationId', deleteConversationHistory);
+router.delete('/history/:id', deleteHistoryById);
+router.delete('/history', clearAllHistory);
 
 // Dashboard Analytics Route
 router.get('/dashboard', getDashboardStats);

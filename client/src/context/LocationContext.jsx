@@ -1,60 +1,61 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import {
   fetchRealUserLocation,
-  getCachedLocation,
   getStoredLocationMode,
-  setStoredLocationMode
+  setStoredLocationMode,
+  purgeStaleLocationCaches
 } from '../services/locationService';
+
+// Ensure any stale storage keys are purged on app load
+purgeStaleLocationCaches();
 
 const LocationContext = createContext();
 
 export function LocationProvider({ children }) {
   const [locationMode, setLocationModeState] = useState(() => getStoredLocationMode());
-
-  const [location, setLocation] = useState(() => {
-    const savedMode = getStoredLocationMode();
-    if (savedMode === 'global') {
-      return {
-        mode: 'global',
-        city: 'Global',
-        formattedLocation: 'Global Agriculture',
-        temp: null,
-        condition: null
-      };
-    }
-    const cached = getCachedLocation();
-    if (cached) {
-      return { ...cached, mode: 'current', isFallback: true };
-    }
-    return null;
-  });
-
+  const [location, setLocation] = useState(() => getStoredLocationMode() === 'global' ? {
+    mode: 'global', city: 'Global', formattedLocation: 'Global Agriculture', temp: null, condition: null, isGpsVerified: false
+  } : null);
   const [loading, setLoading] = useState(getStoredLocationMode() === 'current');
   const [error, setError] = useState(null);
   const [permissionDenied, setPermissionDenied] = useState(false);
+  const requestSequence = useRef(0);
 
   // Request fresh location from browser Geolocation API
-  const requestLocation = useCallback(async (forceRefresh = true) => {
+  const requestLocation = useCallback(async () => {
+    const sequence = ++requestSequence.current;
     setLoading(true);
     setError(null);
     setPermissionDenied(false);
+    setLocation(null);
 
-    const result = await fetchRealUserLocation(forceRefresh);
+    let result;
+    try {
+      result = await fetchRealUserLocation();
+    } catch (requestError) {
+      result = {
+        success: false,
+        error: requestError.message || 'Unable to obtain your device location. Please retry.',
+        permissionDenied: false,
+        isGpsVerified: false
+      };
+    }
+    if (sequence !== requestSequence.current) return result;
 
     if (result.success) {
-      const activeLoc = { ...result, mode: 'current' };
+      const activeLoc = { ...result, mode: 'current', isGpsVerified: true };
       setLocation(activeLoc);
       setError(null);
       setPermissionDenied(false);
     } else {
       if (result.permissionDenied) {
         setPermissionDenied(true);
-        setError('Location access was denied. Please enable browser location permissions for farming guidance.');
+        setError('Location permission was denied. Please allow location access in your browser, then click Retry.');
       } else {
-        setError(result.error || 'Failed to obtain farm location');
+        setError(result.error || 'Location unavailable — check device GPS and retry.');
       }
-      // If detection failed and we don't have a valid location, clear fallback
-      setLocation(prev => (prev?.isFallback ? null : prev));
+      // Never display any fallback or previous location on failure
+      setLocation(null);
     }
     setLoading(false);
     return result;
@@ -68,26 +69,28 @@ export function LocationProvider({ children }) {
     setStoredLocationMode(newMode);
 
     if (newMode === 'global') {
+      requestSequence.current += 1;
       setLocation({
         mode: 'global',
         city: 'Global',
         formattedLocation: 'Global Agriculture',
         temp: null,
-        condition: null
+        condition: null,
+        isGpsVerified: false
       });
       setLoading(false);
       setError(null);
       setPermissionDenied(false);
     } else {
-      // Switched back to Current Location -> automatically fetch fresh location
-      requestLocation(true);
+      // Switched back to Current Location -> request real device GPS immediately
+      requestLocation();
     }
   }, [requestLocation]);
 
   // ON APP STARTUP: Always trigger fresh location request if mode is 'current'
   useEffect(() => {
     if (locationMode === 'current') {
-      requestLocation(true);
+      requestLocation();
     }
   }, [locationMode, requestLocation]);
 
@@ -100,8 +103,9 @@ export function LocationProvider({ children }) {
         error,
         permissionDenied,
         setMode,
-        requestLocation: () => requestLocation(true),
-        refreshLocation: () => requestLocation(true)
+        requestLocation,
+        refreshLocation: requestLocation,
+        isGpsVerified: Boolean(location?.isGpsVerified)
       }}
     >
       {children}

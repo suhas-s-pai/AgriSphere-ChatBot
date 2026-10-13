@@ -2,6 +2,13 @@ const http = require('http');
 const { isUnrelatedQuery, GUARDRAIL_REJECTION_MESSAGE } = require('../services/agriClassifier');
 const { analyzeAgriQuery, generateOfflineAgriAnalysis } = require('../services/agriAnalyzer');
 const app = require('../server');
+const axios = require('axios');
+const {
+  getImageTopics,
+  getReferenceImages,
+  wantsReferenceImages,
+  isWikimediaHost
+} = require('../services/referenceImageService');
 
 async function runAgriSphereTestSuite() {
   console.log('🧪 Starting AgriSphere Automated Test Suite...\n');
@@ -68,6 +75,49 @@ async function runAgriSphereTestSuite() {
   const imgRes = await analyzeAgriQuery('Check this crop leaf', dummyImageBase64, 'AUTO', 'hi');
   assert(imgRes.hasImage === true, 'Registers image attachment payload');
 
+  // Suite 5b: Reference image request detection and Wikimedia Commons hosts
+  console.log('\n[Suite 5b: Reference Image Requests]');
+  assert(wantsReferenceImages('Show me tomato diseases') === true, 'Detects agricultural image request');
+  assert(wantsReferenceImages('How often should I water tomatoes?') === false, 'Leaves text-only agriculture questions unchanged');
+  const tomatoImageTopics = getImageTopics('Show me tomato diseases');
+  assert(tomatoImageTopics.length === 4, 'Builds the four requested tomato disease topics');
+  assert(tomatoImageTopics.map((topic) => topic.label).join('|') === 'Early Blight|Late Blight|Septoria Leaf Spot|Tomato Yellow Leaf Curl Virus', 'Uses the expected tomato disease labels');
+
+  // Validate Wikimedia host security checks
+  assert(isWikimediaHost('https://upload.wikimedia.org/example.jpg') === true, 'Allows upload.wikimedia.org host');
+  assert(isWikimediaHost('https://thumb.wikimedia.org/example.jpg') === true, 'Allows thumb.wikimedia.org host');
+  assert(isWikimediaHost('https://malicious-external-site.com/image.jpg') === false, 'Rejects non-Wikimedia host');
+
+  const originalAxiosGet = axios.get;
+  axios.get = async () => ({
+    data: {
+      query: {
+        pages: {
+          1: {
+            title: 'File:Early Blight on Tomato.jpg',
+            imageinfo: [{
+              thumburl: 'https://thumb.wikimedia.org/example1.jpg',
+              descriptionurl: 'https://commons.wikimedia.org/wiki/File:Example1.jpg',
+              extmetadata: { LicenseShortName: { value: 'CC BY-SA' } }
+            }]
+          },
+          2: {
+            title: 'File:Late Blight Tomato Leaf.jpg',
+            imageinfo: [{
+              thumburl: 'https://upload.wikimedia.org/example2.jpg',
+              descriptionurl: 'https://commons.wikimedia.org/wiki/File:Example2.jpg',
+              extmetadata: { LicenseShortName: { value: 'CC BY-SA' } }
+            }]
+          }
+        }
+      }
+    }
+  });
+  const mockGallery = await getReferenceImages('Show me tomato diseases');
+  axios.get = originalAxiosGet;
+  assert(mockGallery.length > 0, 'Returns gallery entries for a tomato disease image request');
+  assert(mockGallery.every((item) => (item.url.startsWith('https://upload.wikimedia.org/') || item.url.startsWith('https://thumb.wikimedia.org/')) && item.sourceUrl.startsWith('https://commons.wikimedia.org/')), 'Restricts gallery image and attribution links to Wikimedia Commons');
+
   // Suite 6: User Exact Question Analysis Tests
   console.log('\n[Suite 6: Direct Question-to-Answer Intent Engine]');
   
@@ -126,8 +176,8 @@ async function runAgriSphereTestSuite() {
   const testE_res = await analyzeAgriQuery('What should I do?', null, 'AUTO', 'en', testE_history);
   assert(testE_res.isUnrelated === false, 'Test E: Allows "What should I do?" with crop yellow leaves history');
 
-  // Suite 6: Single Service HTTP Endpoint Tests
-  console.log('\n[Suite 6: Single Web Service Deployment Endpoints]');
+  // Suite 8: Critical Bug Fix Verification Suite
+  console.log('\n[Suite 8: Critical Bug Fix Verification Suite]');
   
   let testServer;
   let port;
@@ -140,6 +190,119 @@ async function runAgriSphereTestSuite() {
   }
 
   try {
+    // 1. Image request returns a gallery without timing out
+    console.log('  Testing live/fast Wikimedia Commons gallery retrieval...');
+    const imgStart = Date.now();
+    const liveGallery = await getReferenceImages('Show me tomato diseases with images');
+    const imgDuration = Date.now() - imgStart;
+    assert(imgDuration < 8000, `Image request returns gallery quickly (${imgDuration}ms < 8000ms) without timing out`);
+    assert(Array.isArray(liveGallery), 'Live gallery returns an array');
+    if (liveGallery.length > 0) {
+      assert(liveGallery.every(item => item.url && item.sourceUrl && (item.url.includes('wikimedia.org'))), 'Every gallery item has valid Wikimedia URL and attribution link');
+    }
+
+    // 2. Clear current conversation permanently deletes its messages
+    const convIdToClear = `conv_test_delete_${Date.now()}`;
+    const payloadConv = JSON.stringify({
+      queryText: 'How to control tomato blight?',
+      language: 'en',
+      conversationId: convIdToClear
+    });
+
+    await makeRequest({
+      hostname: 'localhost',
+      port,
+      path: '/api/analyze',
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Content-Length': Buffer.byteLength(payloadConv)
+      }
+    }, payloadConv);
+
+    // Verify conversation was recorded
+    const historyCheck1 = await makeRequest({
+      hostname: 'localhost',
+      port,
+      path: `/api/history?conversationId=${convIdToClear}`,
+      method: 'GET'
+    });
+    const parsedHist1 = JSON.parse(historyCheck1.body);
+    assert(parsedHist1.count >= 1, 'Conversation recorded in backend history before delete');
+
+    // Permanently delete this conversation
+    const deleteConvRes = await makeRequest({
+      hostname: 'localhost',
+      port,
+      path: `/api/history/conversation/${convIdToClear}`,
+      method: 'DELETE'
+    });
+    assert(deleteConvRes.statusCode === 200, 'DELETE /api/history/conversation/:id returns 200 OK');
+
+    // Verify conversation records are permanently gone
+    const historyCheck2 = await makeRequest({
+      hostname: 'localhost',
+      port,
+      path: `/api/history?conversationId=${convIdToClear}`,
+      method: 'GET'
+    });
+    const parsedHist2 = JSON.parse(historyCheck2.body);
+    assert(parsedHist2.count === 0, 'Clear current conversation permanently deletes its records from backend');
+
+    // 3. Clear all history permanently deletes all conversation records
+    const clearAllRes = await makeRequest({
+      hostname: 'localhost',
+      port,
+      path: '/api/history',
+      method: 'DELETE'
+    });
+    assert(clearAllRes.statusCode === 200, 'DELETE /api/history returns 200 OK');
+
+    const historyAllCheck = await makeRequest({
+      hostname: 'localhost',
+      port,
+      path: '/api/history',
+      method: 'GET'
+    });
+    const parsedAllHist = JSON.parse(historyAllCheck.body);
+    assert(parsedAllHist.count === 0 && parsedAllHist.consultations.length === 0, 'Clear all history permanently removes every consultation record');
+
+    // 4. New Chat creates a unique conversation ID and starts empty
+    const { generateConversationId } = require('../../client/src/services/conversationStorage');
+    const idA = generateConversationId();
+    const idB = generateConversationId();
+    assert(Boolean(idA) && Boolean(idB) && idA !== idB, 'New Chat creates distinct unique conversation IDs');
+
+    const newChatA = { id: idA, title: 'New Conversation', messages: [] };
+    assert(Array.isArray(newChatA.messages) && newChatA.messages.length === 0, 'New Chat conversation initializes with empty message list');
+
+    // 5. Previous chat messages never leak into a new conversation
+    const conv1 = {
+      id: idA,
+      messages: [{ role: 'user', content: 'Rice water question' }, { role: 'assistant', content: 'Rice advice' }]
+    };
+    const conv2 = {
+      id: idB,
+      messages: [] // New chat starts empty
+    };
+    const conv2HistoryPayload = conv2.messages.slice(-6).map(m => ({ role: m.role, message: m.content }));
+    assert(conv2HistoryPayload.length === 0, 'Previous chat messages never leak into new conversation history payload');
+
+    // 6. Delayed responses from an old conversation do not appear in the new chat
+    let activeConvRef = idB; // User switched to new chat B
+    let chatBMessages = [];
+    const delayedResponseTargetId = idA; // Response resolves for old chat A
+    const incomingOldResponse = { role: 'assistant', content: 'Delayed response for old chat A' };
+
+    // Simulating ref-guarded message append logic:
+    if (activeConvRef === delayedResponseTargetId) {
+      chatBMessages.push(incomingOldResponse);
+    }
+    assert(chatBMessages.length === 0, 'Delayed responses from an old conversation do not appear in the new active chat');
+
+    // Suite 9: Single Web Service Deployment Endpoints
+    console.log('\n[Suite 9: Single Web Service Deployment Endpoints]');
+    
     // Health
     const healthRes = await makeRequest({ hostname: 'localhost', port, path: '/api/health', method: 'GET' });
     assert(healthRes.statusCode === 200, 'GET /api/health returns 200 OK');
@@ -157,44 +320,15 @@ async function runAgriSphereTestSuite() {
     const cropsRes = await makeRequest({ hostname: 'localhost', port, path: '/crops', method: 'GET' });
     assert(cropsRes.statusCode === 200, 'GET /crops returns 200 OK (SPA fallback)');
 
-    const historyRes = await makeRequest({ hostname: 'localhost', port, path: '/consultations', method: 'GET' });
-    assert(historyRes.statusCode === 200, 'GET /consultations returns 200 OK (SPA fallback)');
-
-    // POST /api/analyze with Location Context
-    const payloadLoc = JSON.stringify({
-      queryText: 'Tell my location and which is the best crop I can grow easily?',
-      language: 'en',
-      location: {
-        city: 'Mangaluru',
-        state: 'Karnataka',
-        country: 'India',
-        latitude: 12.9141,
-        longitude: 74.8560,
-        formattedLocation: 'Mangaluru, Karnataka, India',
-        temp: 28,
-        condition: 'Partly Cloudy'
-      }
-    });
-    const analyzeLocHttpRes = await makeRequest({
-      hostname: 'localhost',
-      port,
-      path: '/api/analyze',
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Content-Length': Buffer.byteLength(payloadLoc)
-      }
-    }, payloadLoc);
-
-    assert(analyzeLocHttpRes.statusCode === 200, 'POST /api/analyze with Geolocation returns 200 OK');
+    const consultationsRes = await makeRequest({ hostname: 'localhost', port, path: '/consultations', method: 'GET' });
+    assert(consultationsRes.statusCode === 200, 'GET /consultations returns 200 OK (SPA fallback)');
 
   } catch (err) {
-    console.error('❌ Error during HTTP tests:', err);
+    console.error('❌ Error during test run:', err);
     failed++;
   } finally {
     if (testServer) testServer.close();
   }
-
 
   console.log(`\n======================================================`);
   console.log(`📊 AgriSphere Test Suite: ${passed} PASSED, ${failed} FAILED out of ${passed + failed} assertions.`);

@@ -16,6 +16,7 @@ AgriSphere provides guidance on crop selection, disease diagnosis, pest manageme
 
 - **🌾 Agriculture-Only AI Assistant**: Enforces strict domain guardrails. Non-agricultural questions (e.g. general coding, trivia) are politely redirected to maintain product focus.
 - **📷 Camera & Image Upload**: Allows farmers to take photos or upload crop leaf images for plant health and disease analysis.
+- **🖼️ Reference Image Galleries**: Agriculture image requests search Wikimedia Commons and show source-linked reference photos in chat. No additional API key is required.
 - **🎤 Multilingual Voice Input**: Speech-to-text integration using browser Speech Recognition across 8 supported Indian and global languages.
 - **🌐 Multilingual Support**: 8 supported languages including English, Kannada (ಕನ್ನಡ), Hindi (हिंदी), Telugu (తెలుగు), Tamil (தமிழ்), Malayalam (മലയാളം), Marathi (मराठी), and Bengali (বাংলা).
 - **📊 AgriSphere Dashboard**: Analytics overview of crop inquiries, disease cases, irrigation advice, soil nutrition, and category breakdown charts powered by Recharts.
@@ -96,6 +97,8 @@ To deploy on Render as a Single Web Service:
 - **Start Command**: `npm start`
 
 Express will automatically compile the React frontend into `client/dist`, serve static assets, handle SPA routes (`/dashboard`, `/crops`, `/consultations`, `/learn`), and process `/api/*` requests from a single URL!
+
+Configure `GEMINI_API_KEY` in the Render service environment for Gemini answers. Reference image search uses the public Wikimedia Commons API and needs no separate key. Keep provider keys in Render's server environment variables; never add them to the client build.
 
 ---
 

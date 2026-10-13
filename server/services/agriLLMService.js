@@ -77,7 +77,7 @@ async function callAgriLLM(queryText, imageBase64 = null, language = 'en', histo
 
   // Construct location context snippet if location details are supplied
   let locationContextStr = '';
-  if (location && typeof location === 'object') {
+  if (location && typeof location === 'object' && (location.mode === 'global' || location.isGpsVerified === true)) {
     const isGlobal = location.mode === 'global';
 
     if (isGlobal) {
@@ -114,10 +114,9 @@ IMPORTANT INSTRUCTION: The user is in CURRENT LOCATION mode. Treat this as the u
       // The remaining candidates are current Gemini API model IDs.
       const candidateModels = Array.from(new Set([
         process.env.GEMINI_MODEL,
-        'gemini-3.8-flash',
         'gemini-3.5-flash-lite',
         'gemini-3.5-flash',
-        'gemini-2.5-flash'
+        'gemini-3.8-flash'
       ])).filter(Boolean);
 
       const contents = [];
@@ -152,7 +151,7 @@ IMPORTANT INSTRUCTION: The user is in CURRENT LOCATION mode. Treat this as the u
 
       for (const modelName of candidateModels) {
         try {
-          response = await ai.models.generateContent({
+          const apiCall = ai.models.generateContent({
             model: modelName,
             contents,
             config: {
@@ -161,6 +160,10 @@ IMPORTANT INSTRUCTION: The user is in CURRENT LOCATION mode. Treat this as the u
               responseMimeType: 'application/json'
             }
           });
+          response = await Promise.race([
+            apiCall,
+            new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout of 8000ms exceeded')), 8000))
+          ]);
           usedModel = modelName;
           break;
         } catch (err) {
