@@ -24,7 +24,7 @@ router.get('/health', (req, res) => {
     database: dbStatus,
     geminiConfigured: Boolean(process.env.GEMINI_API_KEY && process.env.GEMINI_API_KEY.trim() !== ''),
     alternativeLlmConfigured: Boolean(process.env.LLM_API_KEY && process.env.LLM_API_KEY.trim() !== ''),
-    configuredModel: process.env.GEMINI_MODEL || 'gemini-3.5-flash-lite'
+    configuredModel: process.env.GEMINI_MODEL || 'gemini-3-flash-preview'
   });
 });
 

@@ -76,6 +76,26 @@ function buildGeminiUserPrompt(queryText, targetLang, locationContextStr = '') {
   return `User Agriculture Question (answer this exact question first):\n${queryText || 'Analyze attached crop image'}${locationContextStr}\nTarget Response Language: Please write your response in ${targetLang}.\nAnalyze and output JSON matching system schema.`;
 }
 
+function sanitizeErrorMessage(msg) {
+  if (!msg || typeof msg !== 'string') return '';
+  return msg.replace(/AIzaSy[A-Za-z0-9_-]{33}/g, '[REDACTED_API_KEY]');
+}
+
+function classifyGeminiError(err) {
+  const status = err?.status || err?.statusCode || (err?.response && err.response.status);
+  const msg = err?.message || '';
+  const isAuth = status === 401 || status === 403 || /API_KEY_INVALID|API key not valid|invalid api key/i.test(msg);
+  const isQuota = status === 429 || /quota|RESOURCE_EXHAUSTED/i.test(msg);
+  const isNotFound = status === 404 || /not found|is no longer available|NOT_FOUND/i.test(msg);
+  const isTimeout = err?.name === 'AbortError' || /abort|timeout|DEADLINE_EXCEEDED/i.test(msg);
+
+  if (isAuth) return { type: 'AUTH_ERROR', status: status || 401, retryable: false, message: 'Invalid or rejected API key' };
+  if (isQuota) return { type: 'QUOTA_ERROR', status: 429, retryable: false, message: 'Free tier quota exceeded (429 RESOURCE_EXHAUSTED)' };
+  if (isNotFound) return { type: 'MODEL_NOT_FOUND', status: 404, retryable: false, message: 'Model unavailable or deprecated (404 NOT_FOUND)' };
+  if (isTimeout) return { type: 'TIMEOUT', status: 408, retryable: true, message: 'Request timed out' };
+  return { type: 'TRANSIENT', status: status || 500, retryable: true, message: sanitizeErrorMessage(msg) };
+}
+
 async function callAgriLLM(queryText, imageBase64 = null, language = 'en', history = [], location = null, dependencies = {}) {
   const geminiKey = dependencies.apiKey ?? process.env.GEMINI_API_KEY;
   const genericLlmKey = process.env.LLM_API_KEY || process.env.OPENAI_API_KEY;
@@ -117,14 +137,24 @@ IMPORTANT INSTRUCTION: The user is in CURRENT LOCATION mode. Treat this as the u
     console.log('Gemini API: ENABLED');
     try {
       const GeminiClient = dependencies.GoogleGenAI || GoogleGenAI;
-      const ai = new GeminiClient({ apiKey: geminiKey.trim() });
-      // Prefer the model explicitly configured by the user.
-      // The remaining candidates are current Gemini API model IDs.
+      // Disable SDK's internal multi-minute 429 retry loop so transient vs quota errors are handled promptly
+      const ai = new GeminiClient({
+        apiKey: geminiKey.trim(),
+        httpOptions: {
+          retryOptions: {
+            attempts: 1
+          }
+        }
+      });
+
+      // Prefer the model explicitly configured by the user, followed by supported fast candidates
       const candidateModels = Array.from(new Set([
-        process.env.GEMINI_MODEL,
-        'gemini-3.5-flash-lite',
-        'gemini-3.5-flash',
-        'gemini-3.8-flash'
+        dependencies.model || process.env.GEMINI_MODEL,
+        'gemini-3-flash-preview',
+        'gemini-3.1-flash-lite',
+        'gemini-3.1-flash-lite-preview',
+        'gemini-3.8-flash',
+        'gemini-3.5-flash-lite'
       ])).filter(Boolean);
 
       const contents = [];
@@ -156,19 +186,26 @@ IMPORTANT INSTRUCTION: The user is in CURRENT LOCATION mode. Treat this as the u
       let response = null;
       let usedModel = null;
       let lastErr = null;
-      const requestDeadline = Date.now() + 30000;
+
+      // Configurable overall deadline with safe bounds (defaults to 25s, min 4s, max 45s)
+      const parsedTimeout = parseInt(dependencies.timeoutMs || process.env.GEMINI_TIMEOUT_MS, 10);
+      const overallTimeoutMs = Number.isFinite(parsedTimeout) ? Math.min(Math.max(parsedTimeout, 4000), 45000) : 25000;
+      const perAttemptTimeoutMs = Math.min(overallTimeoutMs, 14000);
+      const requestDeadline = Date.now() + overallTimeoutMs;
 
       for (const modelName of candidateModels) {
-        const remainingMs = requestDeadline - Date.now();
-        if (remainingMs <= 0) {
-          lastErr = new Error('Gemini request timed out after 30000ms');
+        const remainingOverallMs = requestDeadline - Date.now();
+        if (remainingOverallMs < 1500) {
+          lastErr = new Error(`Gemini request timed out after ${overallTimeoutMs}ms`);
           break;
         }
+
+        const attemptTimeoutMs = Math.min(perAttemptTimeoutMs, remainingOverallMs);
+        const abortController = new AbortController();
+        const timeoutId = setTimeout(() => abortController.abort(), attemptTimeoutMs);
+
         try {
-          const abortController = new AbortController();
-          const timeout = setTimeout(() => abortController.abort(), remainingMs);
-          try {
-            response = await ai.models.generateContent({
+          response = await ai.models.generateContent({
             model: modelName,
             contents,
             config: {
@@ -178,14 +215,27 @@ IMPORTANT INSTRUCTION: The user is in CURRENT LOCATION mode. Treat this as the u
               abortSignal: abortController.signal
             }
           });
-          } finally {
-            clearTimeout(timeout);
-          }
           usedModel = modelName;
           break;
         } catch (err) {
           lastErr = err;
-          console.warn(`⚠️ Gemini model ${modelName} failed: ${err.message}. Trying the next configured model...`);
+          const classified = classifyGeminiError(err);
+          const sanitizedErr = sanitizeErrorMessage(err.message || 'Unknown error');
+
+          if (classified.type === 'AUTH_ERROR') {
+            console.warn(`❌ Gemini API authentication failure (${classified.status}): ${classified.message}. Halting retries.`);
+            break; // Stop immediately on auth failure, do not retry other models
+          } else if (classified.type === 'QUOTA_ERROR') {
+            console.warn(`⚠️ Gemini model "${modelName}" quota reached (429). Skipping to next candidate model...`);
+          } else if (classified.type === 'MODEL_NOT_FOUND') {
+            console.warn(`⚠️ Gemini model "${modelName}" not found or unsupported (404). Trying next candidate model...`);
+          } else if (classified.type === 'TIMEOUT') {
+            console.warn(`⚠️ Gemini model "${modelName}" timed out after ${attemptTimeoutMs}ms. Trying next candidate model...`);
+          } else {
+            console.warn(`⚠️ Gemini model "${modelName}" failed: ${sanitizedErr}. Trying next candidate model...`);
+          }
+        } finally {
+          clearTimeout(timeoutId);
         }
       }
 
@@ -195,21 +245,24 @@ IMPORTANT INSTRUCTION: The user is in CURRENT LOCATION mode. Treat this as the u
 
       console.log(`Gemini API: response received from ${usedModel}`);
 
-      const jsonText = response?.text;
-      if (!jsonText) {
+      const rawJson = response?.text;
+      if (!rawJson || typeof rawJson !== 'string' || !rawJson.trim()) {
         console.warn('⚠️ Gemini API returned empty response text.');
         return null;
       }
 
-      const parsed = JSON.parse(jsonText);
+      const strippedJson = rawJson.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim();
+      const parsed = JSON.parse(strippedJson);
       const cleaned = validateAndCleanAgriResponse(parsed);
       if (cleaned) {
         cleaned.source = 'GEMINI';
         cleaned.model = usedModel;
+        cleaned.isFallback = false;
       }
       return cleaned;
     } catch (geminiErr) {
-      console.warn(`⚠️ Google Gemini API call failed: ${geminiErr.message}. Switching to the next available AI/fallback mechanism.`);
+      const sanitized = sanitizeErrorMessage(geminiErr.message || 'Gemini request failed');
+      console.warn(`⚠️ Google Gemini API call failed: ${sanitized}. Switching to the next available AI/fallback mechanism.`);
       // Continue to check generic LLM key or fallback to offline engine
     }
   }
@@ -276,24 +329,44 @@ function validateAndCleanAgriResponse(data) {
   if (!data || typeof data !== 'object') return null;
 
   const msg = data.message || data.assessment || data.answer || 'Agricultural guidance completed.';
+
+  let categoryStr = 'General Agriculture';
+  if (Array.isArray(data.category)) {
+    categoryStr = data.category.filter(Boolean).join(', ');
+  } else if (typeof data.category === 'string' && data.category.trim()) {
+    categoryStr = data.category.trim();
+  }
+
+  let cropStr = null;
+  if (Array.isArray(data.crop)) {
+    cropStr = data.crop.map(c => typeof c === 'object' && c !== null ? (c.name || JSON.stringify(c)) : c).filter(Boolean).join(', ');
+  } else if (typeof data.crop === 'object' && data.crop !== null) {
+    cropStr = data.crop.name || data.crop.crop || null;
+  } else if (typeof data.crop === 'string' && data.crop.trim()) {
+    cropStr = data.crop.trim();
+  }
+
   return {
-    message: msg,
-    assessment: msg,
-    title: data.title || data.crop || 'Agricultural Advisory',
-    category: data.category || 'General Agriculture',
-    crop: data.crop || null,
+    message: typeof msg === 'string' ? msg : String(msg),
+    assessment: typeof msg === 'string' ? msg : String(msg),
+    title: typeof data.title === 'string' && data.title.trim() ? data.title.trim() : (cropStr || 'Agricultural Advisory'),
+    category: categoryStr,
+    crop: cropStr,
     confidence: Number(data.confidence) || null,
     symptoms: Array.isArray(data.symptoms) ? data.symptoms : [],
     possibleCauses: Array.isArray(data.possibleCauses) ? data.possibleCauses : [],
     recommendedActions: Array.isArray(data.recommendedActions) ? data.recommendedActions : [],
     prevention: Array.isArray(data.prevention) ? data.prevention : [],
     warnings: Array.isArray(data.warnings) ? data.warnings : [],
-    followUpQuestion: data.followUpQuestion || null
+    followUpQuestion: typeof data.followUpQuestion === 'string' ? data.followUpQuestion : null
   };
 }
 
 module.exports = {
   callAgriLLM,
   SYSTEM_PROMPT,
-  buildGeminiUserPrompt
+  buildGeminiUserPrompt,
+  validateAndCleanAgriResponse,
+  classifyGeminiError,
+  sanitizeErrorMessage
 };

@@ -342,27 +342,44 @@ function generateOfflineAgriAnalysis(text, hasImage, language = 'en') {
 
   // Assam-specific crop guidance for the common regional crop-selection fallback.
   if (/\bassam\b/i.test(lower) && /\b(crop|grow|plant|cultivat|farm|suitab|recommend)\w*\b/i.test(lower)) {
-    const msg = `For Assam, the strongest crop options depend on district, elevation, drainage, and season. Good options to consider include:
+    const isMonsoon = /\b(monsoon|rainy|kharif|sali|flood)\b/i.test(lower);
+    const title = isMonsoon ? 'Suitable Crops for Assam (Monsoon Season)' : 'Crop Options for Assam';
+    const msg = isMonsoon
+      ? `For Assam during the monsoon season (Kharif period), heavy rainfall and high humidity dictate crop choice and field drainage:
 
-• **Rice:** A major fit across Assam. Sali rice suits the main monsoon season; Ahu is an earlier crop, while Boro rice is an irrigated dry-season option.
+• **Rice:** Rice is a major monsoon-season crop across Assam. Sali rice (winter rice) is the primary crop, transplanted during June–July and harvested in November–December in water-abundant fields. Submergence-tolerant varieties (e.g., Swarna Sub-1, Bahadur Sub-1) are strongly advised in flood-prone areas.
+• **Jute:** A major warm, humid season commercial fiber crop; suitable options can also include jute for the alluvial floodplains of the Brahmaputra valley with adequate moisture and drainage.
+• **Tea:** Well suited to humid upland slopes with acidic, well-drained soil where standing water does not accumulate.
+• **Mustard:** Can be planned as a follow-up Rabi-season crop after the monsoon rice harvest once floodwaters recede.
+• **Other Monsoon Options:** Maize, vegetables (okra, gourds), and pulses can fit well-drained raised beds or flood-free uplands.
+
+**Critical Suitability Factors:**
+• Crop suitability depends on district, flooding duration, soil, drainage, and local agricultural recommendations.
+• In flood-prone lowlands, select flood-tolerant rice varieties and prepare raised community nurseries. On hill slopes, verify soil acidity and erosion control before planting perennial crops. Consult your local Krishi Vigyan Kendra (KVK) or Assam Agricultural University (AAU) crop calendar for block-specific variety releases.`
+      : `For Assam, the strongest crop options depend on district, elevation, drainage, and season:
+
+• **Rice:** A major fit across Assam. Sali rice suits the main monsoon season; Ahu is an earlier spring crop, while Boro rice is an irrigated dry-season option.
 • **Tea:** Well suited to suitable humid upland areas with acidic, well-drained soil; suitability varies with elevation and local conditions.
 • **Jute:** A warm, humid season crop that can fit alluvial areas of the Brahmaputra valley with adequate moisture and drainage.
 • **Mustard:** A useful Rabi-season option, often grown after rice where fields drain well.
 • **Other options:** Maize, pulses, potato, banana, and vegetables can fit particular districts and upland or floodplain conditions.
 
-In flood-prone lowlands, prioritize crops and varieties suited to the local flood duration. On hills or uplands, check soil acidity, slope, and erosion risk before choosing tea or other perennial crops. Share your district, land type, and planting season for a narrower recommendation.`;
+**Critical Suitability Factors:**
+• Crop suitability depends on district, flooding duration, soil, drainage, and local agricultural recommendations.
+• In flood-prone lowlands, prioritize crops and varieties suited to the local flood duration. On hills or uplands, check soil acidity, slope, and erosion risk before choosing tea or other perennial crops. Share your district, land type, and planting season for a narrower recommendation.`;
+
     return {
       message: msg,
       assessment: msg,
-      title: 'Crop Options for Assam',
+      title,
       category: 'Crop Cultivation',
-      crop: null,
+      crop: 'Rice',
       recommendedActions: [
-        'Compare the district crop calendar with your intended planting season.',
-        'Check soil drainage, acidity, flood duration, and irrigation before selecting a crop.',
-        'Ask the local agriculture or horticulture office about varieties recommended for your block.'
+        'Select submergence-tolerant rice varieties (e.g. Swarna Sub-1) for flood-vulnerable lowlands.',
+        'Ensure raised-bed nursery preparation and adequate field drainage channels.',
+        'Consult your district KVK or Assam Agricultural University (AAU) crop calendar.'
       ],
-      warnings: ['Crop fit varies between floodplain, char, and hill districts; confirm local variety and season recommendations.']
+      warnings: ['Crop suitability varies by district and flood duration; verify local drainage before sowing.']
     };
   }
 

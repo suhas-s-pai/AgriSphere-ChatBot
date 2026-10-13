@@ -371,6 +371,170 @@ async function runAgriSphereTestSuite() {
     const consultationsRes = await makeRequest({ hostname: 'localhost', port, path: '/consultations', method: 'GET' });
     assert(consultationsRes.statusCode === 200, 'GET /consultations returns 200 OK (SPA fallback)');
 
+    // Suite 10: Gemini Timeout, Model Selection, Error Classification & Fallback Suite
+    console.log('\n[Suite 10: Gemini Timeout, Model Selection, Error Classification & Fallback Suite]');
+
+    // 1. Valid Gemini Response
+    class MockSuccessClient {
+      constructor() {
+        this.models = {
+          generateContent: async ({ model }) => ({
+            text: JSON.stringify({
+              message: 'Monsoon crops for Assam include rice and jute.',
+              title: 'Assam Monsoon Crops',
+              category: 'Crop Cultivation',
+              crop: 'Rice'
+            })
+          })
+        };
+      }
+    }
+    const validGemini = await callAgriLLM('Which crops for Assam?', null, 'en', [], null, {
+      apiKey: 'test-key',
+      GoogleGenAI: MockSuccessClient
+    });
+    assert(validGemini.source === 'GEMINI', 'Valid Gemini call sets source to GEMINI');
+    assert(validGemini.isFallback === false, 'Valid Gemini call marks isFallback as false');
+    assert(validGemini.crop === 'Rice', 'Valid Gemini call preserves structured crop field');
+
+    // 2. Unsupported Model ID (404) skips to next candidate
+    const attemptedModels = [];
+    class MockModelFallbackClient {
+      constructor() {
+        this.models = {
+          generateContent: async ({ model }) => {
+            attemptedModels.push(model);
+            if (model === 'invalid-unsupported-model') {
+              const err = new Error('Model not found');
+              err.status = 404;
+              throw err;
+            }
+            return {
+              text: JSON.stringify({
+                message: 'Successful answer from candidate model.',
+                title: 'Fallback Model Success'
+              })
+            };
+          }
+        };
+      }
+    }
+    const fallbackRes = await callAgriLLM('Tomato care', null, 'en', [], null, {
+      apiKey: 'test-key',
+      model: 'invalid-unsupported-model',
+      GoogleGenAI: MockModelFallbackClient
+    });
+    assert(attemptedModels[0] === 'invalid-unsupported-model', 'Attempts user-configured model first');
+    assert(attemptedModels.length > 1, 'Skips 404 model and attempts next candidate model');
+    assert(fallbackRes.source === 'GEMINI', 'Recovers with successful candidate model');
+
+    // 3. Timeout and abort handling gives each attempt a fresh signal
+    const receivedSignals = [];
+    class MockTimeoutClient {
+      constructor() {
+        this.models = {
+          generateContent: async ({ model, config }) => {
+            receivedSignals.push(config.abortSignal);
+            if (model === 'first-slow-model') {
+              const err = new Error('This operation was aborted.');
+              err.name = 'AbortError';
+              throw err;
+            }
+            return {
+              text: JSON.stringify({
+                message: 'Answer after timeout retry.',
+                title: 'Recovered Response'
+              })
+            };
+          }
+        };
+      }
+    }
+    const timeoutRes = await callAgriLLM('Soil pH test', null, 'en', [], null, {
+      apiKey: 'test-key',
+      model: 'first-slow-model',
+      GoogleGenAI: MockTimeoutClient
+    });
+    assert(receivedSignals.length >= 2, 'Makes subsequent attempt after timeout abort');
+    assert(receivedSignals[0] !== receivedSignals[1], 'Provides a fresh AbortSignal for each attempt');
+    assert(timeoutRes.source === 'GEMINI', 'Successfully receives response from next model after abort');
+
+    // 4. Authentication Error (401/403/invalid key) halts retries immediately
+    let authAttempts = 0;
+    class MockAuthFailureClient {
+      constructor() {
+        this.models = {
+          generateContent: async () => {
+            authAttempts++;
+            const err = new Error('API key not valid. Please pass a valid API key.');
+            err.status = 400;
+            throw err;
+          }
+        };
+      }
+    }
+    const authRes = await callAgriLLM('Irrigation tips', null, 'en', [], null, {
+      apiKey: 'bad-key',
+      GoogleGenAI: MockAuthFailureClient
+    });
+    assert(authAttempts === 1, 'Halts immediately on authentication error without pointless retries');
+    assert(authRes === null, 'Returns null on auth failure to trigger offline fallback');
+
+    // 5. Quota Error (429 RESOURCE_EXHAUSTED) moves to next model without waiting
+    let quotaAttempts = 0;
+    class MockQuotaClient {
+      constructor() {
+        this.models = {
+          generateContent: async ({ model }) => {
+            quotaAttempts++;
+            if (model === 'quota-exhausted-model') {
+              const err = new Error('Resource exhausted: quota exceeded');
+              err.status = 429;
+              throw err;
+            }
+            return {
+              text: JSON.stringify({
+                message: 'Quota recovered response',
+                title: 'Recovered'
+              })
+            };
+          }
+        };
+      }
+    }
+    const quotaRes = await callAgriLLM('Crop advice', null, 'en', [], null, {
+      apiKey: 'test-key',
+      model: 'quota-exhausted-model',
+      GoogleGenAI: MockQuotaClient
+    });
+    assert(quotaAttempts >= 2, 'Moves to next candidate model upon 429 quota exhaustion');
+    assert(quotaRes.source === 'GEMINI', 'Succeeds when another model has quota');
+
+    // 6. Fallback Response for the exact Assam crop question
+    const assamMonsoonQuery = 'Which crops are suitable for Assam during the monsoon season?';
+    const assamMonsoonRes = await analyzeAgriQuery(assamMonsoonQuery, null, 'AUTO', 'en', [], null, async () => null);
+    const assamMsg = assamMonsoonRes.result.message.toLowerCase();
+    assert(assamMsg.includes('rice') && assamMsg.includes('major monsoon-season crop'), 'Assam monsoon fallback states rice is a major monsoon-season crop');
+    assert(assamMsg.includes('jute'), 'Assam monsoon fallback mentions jute as a suitable option');
+    assert(assamMsg.includes('district') && assamMsg.includes('flooding') && assamMsg.includes('soil') && assamMsg.includes('drainage'), 'Assam monsoon fallback explains crop suitability depends on district, flooding, soil, drainage, and local recommendations');
+    assert(assamMonsoonRes.result.isFallback === true, 'Assam monsoon response honestly sets isFallback = true');
+    assert(assamMonsoonRes.result.source === 'OFFLINE_FALLBACK', 'Assam monsoon response sets source = OFFLINE_FALLBACK');
+    assert(assamMonsoonRes.result.title.includes('Assam') && assamMonsoonRes.result.title.includes('Monsoon'), 'Assam monsoon response title reflects monsoon season');
+
+    // 7. Wikimedia image search succeeding when Gemini fails
+    const imageAndTextQuery = 'Show me tomato early blight images';
+    let imagePromiseSucceeded = false;
+    let geminiFailed = false;
+    try {
+      const imgRes = await getReferenceImages(imageAndTextQuery);
+      if (Array.isArray(imgRes)) imagePromiseSucceeded = true;
+    } catch {}
+    const failingLlm = async () => { geminiFailed = true; return null; };
+    const combinedAnalyzeRes = await analyzeAgriQuery(imageAndTextQuery, null, 'AUTO', 'en', [], null, failingLlm);
+    assert(geminiFailed === true, 'Simulated Gemini failure occurred');
+    assert(imagePromiseSucceeded === true, 'Wikimedia image search succeeds independently of Gemini failure');
+    assert(combinedAnalyzeRes.result.isFallback === true, 'Offline fallback is used when Gemini fails with images');
+
   } catch (err) {
     console.error('❌ Error during test run:', err);
     failed++;
