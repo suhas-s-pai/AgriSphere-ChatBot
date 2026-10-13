@@ -1,6 +1,7 @@
 const http = require('http');
 const { isUnrelatedQuery, GUARDRAIL_REJECTION_MESSAGE } = require('../services/agriClassifier');
 const { analyzeAgriQuery, generateOfflineAgriAnalysis } = require('../services/agriAnalyzer');
+const { callAgriLLM } = require('../services/agriLLMService');
 const app = require('../server');
 const axios = require('axios');
 const {
@@ -117,6 +118,53 @@ async function runAgriSphereTestSuite() {
   axios.get = originalAxiosGet;
   assert(mockGallery.length > 0, 'Returns gallery entries for a tomato disease image request');
   assert(mockGallery.every((item) => (item.url.startsWith('https://upload.wikimedia.org/') || item.url.startsWith('https://thumb.wikimedia.org/')) && item.sourceUrl.startsWith('https://commons.wikimedia.org/')), 'Restricts gallery image and attribution links to Wikimedia Commons');
+
+  // Suite 5c: Specific regional answer and Gemini request/response regression
+  console.log('\n[Suite 5c: Exact Question and Regional Crop Regression]');
+  const exactAssamQuestion = 'Which crop can I grow in Assam?';
+  let capturedGeminiRequest;
+  class MockGeminiClient {
+    constructor() {
+      this.models = { generateContent: async (request) => {
+        capturedGeminiRequest = request;
+        return { text: JSON.stringify({
+          message: 'For Assam, consider rice, tea, jute, and mustard based on district and season.',
+          title: 'Crop Options for Assam',
+          category: 'Crop Cultivation'
+        }) };
+      } };
+    }
+  }
+  const geminiResult = await callAgriLLM(exactAssamQuestion, null, 'en', [], null, {
+    apiKey: 'test-key',
+    GoogleGenAI: MockGeminiClient
+  });
+  const submittedPrompt = capturedGeminiRequest.contents.at(-1).parts[0].text;
+  assert(submittedPrompt.includes(`User Agriculture Question (answer this exact question first):\n${exactAssamQuestion}`), 'Sends the exact Assam question to Gemini unchanged');
+  assert(geminiResult.message.includes('rice, tea, jute, and mustard'), 'Preserves Gemini regional answer through response formatting');
+  assert(geminiResult.source === 'GEMINI', 'Marks the mocked Gemini answer as Gemini output');
+
+  const assamFallback = await analyzeAgriQuery(exactAssamQuestion, null, 'AUTO', 'en', [], null, async () => null);
+  const assamFallbackText = assamFallback.result.message.toLowerCase();
+  assert(['rice', 'tea', 'jute', 'mustard'].every((cropName) => assamFallbackText.includes(cropName)), 'Offline Assam fallback recommends rice, tea, jute, and mustard');
+  assert(!assamFallbackText.includes('inspect soil moisture at 15 cm'), 'Does not replace the Assam crop question with generic irrigation advice');
+  assert(assamFallback.result.isFallback && assamFallback.result.source === 'OFFLINE_FALLBACK', 'Clearly labels offline fallback when the LLM is unavailable');
+
+  const llmCalls = [];
+  const testLlm = async (queryText, image, language, history) => {
+    llmCalls.push({ queryText, image, language, history });
+    return { message: `Specific response to: ${queryText}`, source: 'GEMINI' };
+  };
+  const normalQuestion = await analyzeAgriQuery('How do I grow tomatoes?', null, 'AUTO', 'en', [], null, testLlm);
+  const imageQuestion = await analyzeAgriQuery('Show me tomato diseases', null, 'AUTO', 'en', [], null, testLlm);
+  const followUpHistory = [{ role: 'user', message: exactAssamQuestion }];
+  const followUpQuestion = await analyzeAgriQuery('Which of these suits flood-prone land?', null, 'AUTO', 'en', followUpHistory, null, testLlm);
+  let unrelatedCalledLlm = false;
+  const unrelatedQuestion = await analyzeAgriQuery('Write Java code', null, 'AUTO', 'en', [], null, async () => { unrelatedCalledLlm = true; });
+  assert(normalQuestion.result.message.includes('How do I grow tomatoes?'), 'Keeps a normal agriculture query specific');
+  assert(wantsReferenceImages('Show me tomato diseases') && imageQuestion.result.message.includes('Show me tomato diseases'), 'Preserves the question for an agricultural image request');
+  assert(followUpQuestion.result.message.includes('flood-prone land') && llmCalls.at(-1).history === followUpHistory, 'Preserves follow-up question and conversation history');
+  assert(unrelatedQuestion.isUnrelated && !unrelatedCalledLlm, 'Agriculture-only guardrail rejects unrelated queries before Gemini');
 
   // Suite 6: User Exact Question Analysis Tests
   console.log('\n[Suite 6: Direct Question-to-Answer Intent Engine]');

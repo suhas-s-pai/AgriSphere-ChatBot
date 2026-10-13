@@ -100,6 +100,11 @@ export default function AgriResultCard({ result }) {
     <div className="relative group p-4 sm:p-5 rounded-3xl rounded-tl-none bg-white dark:bg-[#091A13] border border-[#1F7A4D]/25 shadow-md space-y-2 max-w-2xl text-left">
       {/* Message Content */}
       <div className="text-xs sm:text-sm space-y-1">
+        {result?.isFallback && (
+          <div role="status" className="mb-2 inline-flex rounded-full bg-amber-100 dark:bg-amber-950/50 px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-wide text-amber-800 dark:text-amber-300">
+            Offline fallback — AI service unavailable
+          </div>
+        )}
         {renderFormattedContent(displayedText)}
         {isTyping && <span className="w-2 h-4 bg-[#1F7A4D] animate-pulse inline-block rounded-xs ml-1" />}
       </div>

@@ -19,8 +19,11 @@ Supported Agriculture Topics:
 Rules:
 1. Only answer agricultural and farming queries.
 2. If the user asks a non-agricultural question (e.g. programming, math, general trivia), politely decline and remind them that AgriSphere only handles farming and agriculture.
-3. Provide practical, field-tested, step-by-step guidance for farmers.
-4. Format response in JSON with the exact structure below.
+3. Answer the user's exact question first. Do not substitute generic soil, irrigation, or fertilizer advice when the user asks for a specific crop, place, disease, pest, or practice.
+4. Treat places and constraints explicitly named in the user's question as the primary subject. Device location is secondary context and must never override a different place named in the question.
+5. For regional crop recommendations, name suitable crops and briefly explain their season/land fit. State relevant uncertainty and ask for district, soil, water, or season when needed; do not refuse to make useful recommendations while waiting for details.
+6. Provide practical, field-tested guidance for farmers.
+7. Format response in JSON with the exact structure below.
 
 Return JSON in this format:
 {
@@ -69,8 +72,12 @@ function parseBase64Image(imageBase64) {
  * Fallback to OpenAI format if OPENAI_API_KEY is supplied instead.
  * Returns normalized object or null (triggering offline fallback engine).
  */
-async function callAgriLLM(queryText, imageBase64 = null, language = 'en', history = [], location = null) {
-  const geminiKey = process.env.GEMINI_API_KEY;
+function buildGeminiUserPrompt(queryText, targetLang, locationContextStr = '') {
+  return `User Agriculture Question (answer this exact question first):\n${queryText || 'Analyze attached crop image'}${locationContextStr}\nTarget Response Language: Please write your response in ${targetLang}.\nAnalyze and output JSON matching system schema.`;
+}
+
+async function callAgriLLM(queryText, imageBase64 = null, language = 'en', history = [], location = null, dependencies = {}) {
+  const geminiKey = dependencies.apiKey ?? process.env.GEMINI_API_KEY;
   const genericLlmKey = process.env.LLM_API_KEY || process.env.OPENAI_API_KEY;
 
   const targetLang = LANG_MAP[language] || 'English';
@@ -109,7 +116,8 @@ IMPORTANT INSTRUCTION: The user is in CURRENT LOCATION mode. Treat this as the u
   if (geminiKey && geminiKey.trim() !== '') {
     console.log('Gemini API: ENABLED');
     try {
-      const ai = new GoogleGenAI({ apiKey: geminiKey.trim() });
+      const GeminiClient = dependencies.GoogleGenAI || GoogleGenAI;
+      const ai = new GeminiClient({ apiKey: geminiKey.trim() });
       // Prefer the model explicitly configured by the user.
       // The remaining candidates are current Gemini API model IDs.
       const candidateModels = Array.from(new Set([
@@ -134,7 +142,7 @@ IMPORTANT INSTRUCTION: The user is in CURRENT LOCATION mode. Treat this as the u
 
       // Build current user prompt parts
       const userParts = [];
-      const userPromptText = `User Agriculture Question: "${queryText || 'Analyze attached crop image'}"${locationContextStr}\nTarget Response Language: Please write your response in ${targetLang}.\nAnalyze and output JSON matching system schema.`;
+      const userPromptText = buildGeminiUserPrompt(queryText, targetLang, locationContextStr);
       userParts.push({ text: userPromptText });
 
       // Add inline image if attached
@@ -148,22 +156,31 @@ IMPORTANT INSTRUCTION: The user is in CURRENT LOCATION mode. Treat this as the u
       let response = null;
       let usedModel = null;
       let lastErr = null;
+      const requestDeadline = Date.now() + 30000;
 
       for (const modelName of candidateModels) {
+        const remainingMs = requestDeadline - Date.now();
+        if (remainingMs <= 0) {
+          lastErr = new Error('Gemini request timed out after 30000ms');
+          break;
+        }
         try {
-          const apiCall = ai.models.generateContent({
+          const abortController = new AbortController();
+          const timeout = setTimeout(() => abortController.abort(), remainingMs);
+          try {
+            response = await ai.models.generateContent({
             model: modelName,
             contents,
             config: {
               systemInstruction: SYSTEM_PROMPT,
               temperature: 0.2,
-              responseMimeType: 'application/json'
+              responseMimeType: 'application/json',
+              abortSignal: abortController.signal
             }
           });
-          response = await Promise.race([
-            apiCall,
-            new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout of 8000ms exceeded')), 8000))
-          ]);
+          } finally {
+            clearTimeout(timeout);
+          }
           usedModel = modelName;
           break;
         } catch (err) {
@@ -242,7 +259,9 @@ IMPORTANT INSTRUCTION: The user is in CURRENT LOCATION mode. Treat this as the u
       if (!jsonStr) return null;
 
       const parsed = JSON.parse(jsonStr);
-      return validateAndCleanAgriResponse(parsed);
+      const cleaned = validateAndCleanAgriResponse(parsed);
+      if (cleaned) cleaned.source = 'ALTERNATE_LLM';
+      return cleaned;
     } catch (llmErr) {
       console.warn(`⚠️ Secondary LLM API call failed: ${llmErr.message}. Switching to offline agriculture engine.`);
       return null;
@@ -275,5 +294,6 @@ function validateAndCleanAgriResponse(data) {
 
 module.exports = {
   callAgriLLM,
-  SYSTEM_PROMPT
+  SYSTEM_PROMPT,
+  buildGeminiUserPrompt
 };

@@ -1,4 +1,4 @@
-const { analyzeAgriQuery, generateOfflineAgriAnalysis } = require('../services/agriAnalyzer');
+const { analyzeAgriQuery, createOfflineFallback } = require('../services/agriAnalyzer');
 const { isUnrelatedQuery, GUARDRAIL_REJECTION_MESSAGE } = require('../services/agriClassifier');
 const Consultation = require('../models/Consultation');
 const { getStatus, memoryStore } = require('../config/db');
@@ -103,7 +103,7 @@ exports.analyzeContent = async (req, res, next) => {
       hasImageAttachment = aiResponse.hasImage;
     } else {
       console.warn('⚠️ AI analysis rejected or timed out, falling back to offline agricultural engine:', aiSettled.reason?.message);
-      aiResultData = generateOfflineAgriAnalysis(textToAnalyze, Boolean(image), language);
+      aiResultData = createOfflineFallback(textToAnalyze, Boolean(image), language);
     }
 
     const referenceImages = imagesSettled.status === 'fulfilled'
@@ -125,6 +125,8 @@ exports.analyzeContent = async (req, res, next) => {
       category: categoryName,
       crop: aiResultData.crop || null,
       language,
+      source: aiResultData.source || 'GEMINI',
+      isFallback: Boolean(aiResultData.isFallback),
       referenceImages,
       referenceImagesRequested: requestedImages,
       result: {
@@ -135,6 +137,8 @@ exports.analyzeContent = async (req, res, next) => {
         title: titleName,
         category: categoryName,
         crop: aiResultData.crop || null,
+        source: aiResultData.source || 'GEMINI',
+        isFallback: Boolean(aiResultData.isFallback),
         referenceImages,
         referenceImagesRequested: requestedImages,
         recommendedActions: aiResultData.recommendedActions || [],
@@ -152,7 +156,7 @@ exports.analyzeContent = async (req, res, next) => {
       imageUrl: hasImageAttachment ? 'image-attached' : '',
       language,
       assessment: aiMessage,
-      confidence: aiResultData.confidence || 90,
+      confidence: aiResultData.isFallback ? null : aiResultData.confidence || 90,
       symptoms: aiResultData.symptoms || [],
       causes: aiResultData.possibleCauses || [],
       recommendedActions: aiResultData.recommendedActions || [],

@@ -7,7 +7,7 @@
 const { isUnrelatedQuery, GUARDRAIL_REJECTION_MESSAGE } = require('./agriClassifier');
 const { callAgriLLM } = require('./agriLLMService');
 
-async function analyzeAgriQuery(rawQuery, imageBase64 = null, mode = 'AUTO', language = 'en', history = [], location = null) {
+async function analyzeAgriQuery(rawQuery, imageBase64 = null, mode = 'AUTO', language = 'en', history = [], location = null, llmInvoker = callAgriLLM) {
   if (!rawQuery && !imageBase64) {
     throw new Error('Please provide an agricultural question or crop image for analysis.');
   }
@@ -24,12 +24,11 @@ async function analyzeAgriQuery(rawQuery, imageBase64 = null, mode = 'AUTO', lan
   }
 
   // 2. Try LLM Call (Supports Gemini Vision/Text API)
-  let llmAnalysis = await callAgriLLM(queryText, imageBase64, language, history, location);
+  let llmAnalysis = await llmInvoker(queryText, imageBase64, language, history, location);
 
   // 3. If LLM unavailable/failed, use Expert Offline Agriculture Analysis Engine
   if (!llmAnalysis) {
-    llmAnalysis = generateOfflineAgriAnalysis(queryText, Boolean(imageBase64), language);
-    llmAnalysis.source = 'OFFLINE';
+    llmAnalysis = createOfflineFallback(queryText, Boolean(imageBase64), language);
   }
 
   return {
@@ -37,6 +36,18 @@ async function analyzeAgriQuery(rawQuery, imageBase64 = null, mode = 'AUTO', lan
     queryText,
     hasImage: Boolean(imageBase64),
     result: llmAnalysis
+  };
+}
+
+function createOfflineFallback(text, hasImage = false, language = 'en') {
+  const fallback = generateOfflineAgriAnalysis(text, hasImage, language);
+  const message = `AI service unavailable. Offline fallback guidance:\n\n${fallback.message || fallback.assessment || ''}`;
+  return {
+    ...fallback,
+    message,
+    assessment: message,
+    source: 'OFFLINE_FALLBACK',
+    isFallback: true
   };
 }
 
@@ -329,6 +340,32 @@ function generateOfflineAgriAnalysis(text, hasImage, language = 'en') {
     };
   }
 
+  // Assam-specific crop guidance for the common regional crop-selection fallback.
+  if (/\bassam\b/i.test(lower) && /\b(crop|grow|plant|cultivat|farm|suitab|recommend)\w*\b/i.test(lower)) {
+    const msg = `For Assam, the strongest crop options depend on district, elevation, drainage, and season. Good options to consider include:
+
+• **Rice:** A major fit across Assam. Sali rice suits the main monsoon season; Ahu is an earlier crop, while Boro rice is an irrigated dry-season option.
+• **Tea:** Well suited to suitable humid upland areas with acidic, well-drained soil; suitability varies with elevation and local conditions.
+• **Jute:** A warm, humid season crop that can fit alluvial areas of the Brahmaputra valley with adequate moisture and drainage.
+• **Mustard:** A useful Rabi-season option, often grown after rice where fields drain well.
+• **Other options:** Maize, pulses, potato, banana, and vegetables can fit particular districts and upland or floodplain conditions.
+
+In flood-prone lowlands, prioritize crops and varieties suited to the local flood duration. On hills or uplands, check soil acidity, slope, and erosion risk before choosing tea or other perennial crops. Share your district, land type, and planting season for a narrower recommendation.`;
+    return {
+      message: msg,
+      assessment: msg,
+      title: 'Crop Options for Assam',
+      category: 'Crop Cultivation',
+      crop: null,
+      recommendedActions: [
+        'Compare the district crop calendar with your intended planting season.',
+        'Check soil drainage, acidity, flood duration, and irrigation before selecting a crop.',
+        'Ask the local agriculture or horticulture office about varieties recommended for your block.'
+      ],
+      warnings: ['Crop fit varies between floodplain, char, and hill districts; confirm local variety and season recommendations.']
+    };
+  }
+
   // 11. General Agricultural Query Fallback (Tailored to user prompt)
   const isFertilizer = lower.includes('fertilizer') || lower.includes('npk') || lower.includes('nutrient');
   const isWater = lower.includes('water') || lower.includes('irrigat');
@@ -364,5 +401,6 @@ function generateOfflineAgriAnalysis(text, hasImage, language = 'en') {
 
 module.exports = {
   analyzeAgriQuery,
-  generateOfflineAgriAnalysis
+  generateOfflineAgriAnalysis,
+  createOfflineFallback
 };

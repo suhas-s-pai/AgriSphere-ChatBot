@@ -391,6 +391,8 @@ export default function AssistantWorkspace() {
             title: data.title || data.result?.title || data.crop || data.result?.crop || 'Agricultural Advisory',
             category: data.category || data.result?.category || 'General Agriculture',
             crop: data.crop || data.result?.crop || null,
+            source: data.source || data.result?.source || 'GEMINI',
+            isFallback: Boolean(data.isFallback || data.result?.isFallback),
             referenceImages: data.referenceImages || data.result?.referenceImages || [],
             referenceImagesRequested: Boolean(data.referenceImagesRequested || data.result?.referenceImagesRequested)
           };
