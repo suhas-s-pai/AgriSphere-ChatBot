@@ -41,7 +41,9 @@ async function analyzeAgriQuery(rawQuery, imageBase64 = null, mode = 'AUTO', lan
 
 function createOfflineFallback(text, hasImage = false, language = 'en') {
   const fallback = generateOfflineAgriAnalysis(text, hasImage, language);
-  const message = `AI service unavailable. Offline fallback guidance:\n\n${fallback.message || fallback.assessment || ''}`;
+  const message = fallback.isHonestNotice
+    ? fallback.message
+    : `AI service unavailable. Offline reference guidance:\n\n${fallback.message || fallback.assessment || ''}`;
   return {
     ...fallback,
     message,
@@ -383,35 +385,30 @@ function generateOfflineAgriAnalysis(text, hasImage, language = 'en') {
     };
   }
 
-  // 11. General Agricultural Query Fallback (Tailored to user prompt)
+  // 11. General Agricultural Query Fallback (Honest service notice when AI is unavailable)
   const isFertilizer = lower.includes('fertilizer') || lower.includes('npk') || lower.includes('nutrient');
   const isWater = lower.includes('water') || lower.includes('irrigat');
   const isDisease = lower.includes('yellow') || lower.includes('spot') || lower.includes('disease') || lower.includes('rot');
 
-  let topicName = 'General Agriculture';
-  if (isFertilizer) topicName = 'Soil & Fertilizer Management';
-  else if (isWater) topicName = 'Irrigation Guidance';
-  else if (isDisease) topicName = 'Crop Health & Disease Advisory';
-  else if (crop) topicName = `${crop} Farming Guidance`;
+  let topicName = 'Agricultural Advisory';
+  if (isFertilizer) topicName = 'Soil & Fertilizer Advisory';
+  else if (isWater) topicName = 'Irrigation Advisory';
+  else if (isDisease) topicName = 'Crop Health Advisory';
+  else if (crop) topicName = `${crop} Advisory`;
 
-  const fallbackMsg = `Here is agricultural guidance regarding your inquiry about "${text.trim()}":
-
-• **Primary Assessment:** Practical field management requires balanced nutrient application, proper irrigation timing, and regular crop health monitoring.
-• **Recommended Actions:** 
-  1. Inspect soil moisture at 15 cm depth before applying irrigation.
-  2. Apply organic manure (vermicompost/FYM) to build soil organic carbon.
-  3. Consult your local agricultural extension office for precise regional chemical dosages.`;
+  const fallbackMsg = `The AgriSphere AI service is currently unavailable. We could not generate a live AI response for your question about "${text.trim()}". Please retry your question in a moment, or rephrase with specific crop details.`;
 
   return {
     message: fallbackMsg,
     assessment: fallbackMsg,
-    title: topicName,
+    title: 'AI Service Unavailable',
     category: topicName,
     crop: crop || null,
+    isHonestNotice: true,
     recommendedActions: [
-      'Conduct a soil test to determine precise NPK and micronutrient needs.',
-      'Adopt drip irrigation or mulching to conserve moisture.',
-      'Monitor fields weekly for early signs of pests or nutrient deficiencies.'
+      'Please retry your question in a moment.',
+      'Check your network connection and API quota status.',
+      'For immediate guidance, specify crop, location, or observed symptoms.'
     ]
   };
 }

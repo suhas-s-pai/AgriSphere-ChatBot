@@ -81,16 +81,41 @@ function sanitizeErrorMessage(msg) {
   return msg.replace(/AIzaSy[A-Za-z0-9_-]{33}/g, '[REDACTED_API_KEY]');
 }
 
+// In-memory cache for models that have exhausted their quota (429) to prevent repetitive failing requests
+const quotaExhaustedModels = new Map();
+
+function isModelQuotaExhausted(modelName) {
+  if (!modelName) return false;
+  const cooldownUntil = quotaExhaustedModels.get(modelName);
+  if (!cooldownUntil) return false;
+  if (Date.now() >= cooldownUntil) {
+    quotaExhaustedModels.delete(modelName);
+    return false;
+  }
+  return true;
+}
+
+function markModelQuotaExhausted(modelName, cooldownMs = 30 * 60 * 1000) {
+  if (!modelName) return;
+  quotaExhaustedModels.set(modelName, Date.now() + cooldownMs);
+}
+
+function clearQuotaMemory() {
+  quotaExhaustedModels.clear();
+}
+
 function classifyGeminiError(err) {
   const status = err?.status || err?.statusCode || (err?.response && err.response.status);
   const msg = err?.message || '';
   const isAuth = status === 401 || status === 403 || /API_KEY_INVALID|API key not valid|invalid api key/i.test(msg);
   const isQuota = status === 429 || /quota|RESOURCE_EXHAUSTED/i.test(msg);
+  const isUnavailable = status === 503 || /high demand|UNAVAILABLE|spikes in demand/i.test(msg);
   const isNotFound = status === 404 || /not found|is no longer available|NOT_FOUND/i.test(msg);
   const isTimeout = err?.name === 'AbortError' || /abort|timeout|DEADLINE_EXCEEDED/i.test(msg);
 
   if (isAuth) return { type: 'AUTH_ERROR', status: status || 401, retryable: false, message: 'Invalid or rejected API key' };
   if (isQuota) return { type: 'QUOTA_ERROR', status: 429, retryable: false, message: 'Free tier quota exceeded (429 RESOURCE_EXHAUSTED)' };
+  if (isUnavailable) return { type: 'UNAVAILABLE_HIGH_DEMAND', status: 503, retryable: true, message: 'Service temporarily unavailable / high demand (503)' };
   if (isNotFound) return { type: 'MODEL_NOT_FOUND', status: 404, retryable: false, message: 'Model unavailable or deprecated (404 NOT_FOUND)' };
   if (isTimeout) return { type: 'TIMEOUT', status: 408, retryable: true, message: 'Request timed out' };
   return { type: 'TRANSIENT', status: status || 500, retryable: true, message: sanitizeErrorMessage(msg) };
@@ -134,10 +159,10 @@ IMPORTANT INSTRUCTION: The user is in CURRENT LOCATION mode. Treat this as the u
 
   // 1. Primary: Use Official Google Gemini API via @google/genai
   if (geminiKey && geminiKey.trim() !== '') {
-    console.log('Gemini API: ENABLED');
+    console.log('[AgriLLM] Gemini API: ENABLED');
     try {
       const GeminiClient = dependencies.GoogleGenAI || GoogleGenAI;
-      // Disable SDK's internal multi-minute 429 retry loop so transient vs quota errors are handled promptly
+      // Disable SDK's internal multi-minute retry loop so transient vs quota errors are handled promptly
       const ai = new GeminiClient({
         apiKey: geminiKey.trim(),
         httpOptions: {
@@ -147,14 +172,12 @@ IMPORTANT INSTRUCTION: The user is in CURRENT LOCATION mode. Treat this as the u
         }
       });
 
-      // Prefer the model explicitly configured by the user, followed by supported fast candidates
+      // Supported model candidates: configured model first, then active alternatives
       const candidateModels = Array.from(new Set([
-        dependencies.model || process.env.GEMINI_MODEL,
-        'gemini-3-flash-preview',
+        dependencies.model || process.env.GEMINI_MODEL || 'gemini-3.1-flash-lite',
         'gemini-3.1-flash-lite',
-        'gemini-3.1-flash-lite-preview',
-        'gemini-3.8-flash',
-        'gemini-3.5-flash-lite'
+        'gemini-3-flash-preview',
+        'gemini-3.1-flash-lite-preview'
       ])).filter(Boolean);
 
       const contents = [];
@@ -190,52 +213,93 @@ IMPORTANT INSTRUCTION: The user is in CURRENT LOCATION mode. Treat this as the u
       // Configurable overall deadline with safe bounds (defaults to 25s, min 4s, max 45s)
       const parsedTimeout = parseInt(dependencies.timeoutMs || process.env.GEMINI_TIMEOUT_MS, 10);
       const overallTimeoutMs = Number.isFinite(parsedTimeout) ? Math.min(Math.max(parsedTimeout, 4000), 45000) : 25000;
-      const perAttemptTimeoutMs = Math.min(overallTimeoutMs, 14000);
+      const perAttemptTimeoutMs = Math.min(overallTimeoutMs, 20000);
       const requestDeadline = Date.now() + overallTimeoutMs;
 
       for (const modelName of candidateModels) {
+        if (isModelQuotaExhausted(modelName)) {
+          console.log(`[AgriLLM] Skipping candidate "${modelName}" (quota exhausted 429, cooldown active).`);
+          continue;
+        }
+
         const remainingOverallMs = requestDeadline - Date.now();
         if (remainingOverallMs < 1500) {
           lastErr = new Error(`Gemini request timed out after ${overallTimeoutMs}ms`);
           break;
         }
 
-        const attemptTimeoutMs = Math.min(perAttemptTimeoutMs, remainingOverallMs);
-        const abortController = new AbortController();
-        const timeoutId = setTimeout(() => abortController.abort(), attemptTimeoutMs);
+        let modelAttempt = 0;
+        const maxAttemptsForModel = 2; // Allow 1 retry on transient 503 high demand
 
-        try {
-          response = await ai.models.generateContent({
-            model: modelName,
-            contents,
-            config: {
-              systemInstruction: SYSTEM_PROMPT,
-              temperature: 0.2,
-              responseMimeType: 'application/json',
-              abortSignal: abortController.signal
-            }
-          });
-          usedModel = modelName;
-          break;
-        } catch (err) {
-          lastErr = err;
-          const classified = classifyGeminiError(err);
-          const sanitizedErr = sanitizeErrorMessage(err.message || 'Unknown error');
-
-          if (classified.type === 'AUTH_ERROR') {
-            console.warn(`❌ Gemini API authentication failure (${classified.status}): ${classified.message}. Halting retries.`);
-            break; // Stop immediately on auth failure, do not retry other models
-          } else if (classified.type === 'QUOTA_ERROR') {
-            console.warn(`⚠️ Gemini model "${modelName}" quota reached (429). Skipping to next candidate model...`);
-          } else if (classified.type === 'MODEL_NOT_FOUND') {
-            console.warn(`⚠️ Gemini model "${modelName}" not found or unsupported (404). Trying next candidate model...`);
-          } else if (classified.type === 'TIMEOUT') {
-            console.warn(`⚠️ Gemini model "${modelName}" timed out after ${attemptTimeoutMs}ms. Trying next candidate model...`);
-          } else {
-            console.warn(`⚠️ Gemini model "${modelName}" failed: ${sanitizedErr}. Trying next candidate model...`);
+        while (modelAttempt < maxAttemptsForModel) {
+          modelAttempt++;
+          const remainingMs = requestDeadline - Date.now();
+          if (remainingMs < 1500) {
+            lastErr = new Error(`Gemini request timed out after ${overallTimeoutMs}ms`);
+            break;
           }
-        } finally {
-          clearTimeout(timeoutId);
+
+          const attemptTimeoutMs = Math.min(perAttemptTimeoutMs, remainingMs);
+          const abortController = new AbortController();
+          const timeoutId = setTimeout(() => abortController.abort(), attemptTimeoutMs);
+
+          console.log(`[AgriLLM] Calling model "${modelName}" (attempt ${modelAttempt}, timeout: ${attemptTimeoutMs}ms)...`);
+          const attemptStart = Date.now();
+
+          try {
+            response = await ai.models.generateContent({
+              model: modelName,
+              contents,
+              config: {
+                systemInstruction: SYSTEM_PROMPT,
+                temperature: 0.2,
+                responseMimeType: 'application/json',
+                abortSignal: abortController.signal
+              }
+            });
+            usedModel = modelName;
+            console.log(`[AgriLLM] Response received from "${usedModel}" in ${Date.now() - attemptStart}ms`);
+            break;
+          } catch (err) {
+            lastErr = err;
+            const latencyMs = Date.now() - attemptStart;
+            const classified = classifyGeminiError(err);
+            const sanitizedErr = sanitizeErrorMessage(err.message || 'Unknown error');
+
+            if (classified.type === 'AUTH_ERROR') {
+              console.warn(`❌ [AgriLLM] Gemini API authentication failure (${classified.status}): ${classified.message}. Halting retries.`);
+              return null;
+            } else if (classified.type === 'QUOTA_ERROR') {
+              markModelQuotaExhausted(modelName, 30 * 60 * 1000);
+              console.warn(`⚠️ [AgriLLM] Model "${modelName}" quota reached (429) in ${latencyMs}ms. Cooldown set for 30m. Skipping to next candidate model...`);
+              break;
+            } else if (classified.type === 'UNAVAILABLE_HIGH_DEMAND') {
+              const timeBudgetLeft = requestDeadline - Date.now();
+              if (modelAttempt === 1 && timeBudgetLeft > 4000) {
+                console.warn(`⚠️ [AgriLLM] Model "${modelName}" hit temporary 503 high demand in ${latencyMs}ms. Retrying once in 1000ms...`);
+                await new Promise((res) => setTimeout(res, 1000));
+                continue;
+              } else {
+                console.warn(`⚠️ [AgriLLM] Model "${modelName}" high demand (503) persisted in ${latencyMs}ms. Trying next candidate model...`);
+                break;
+              }
+            } else if (classified.type === 'MODEL_NOT_FOUND') {
+              console.warn(`⚠️ [AgriLLM] Model "${modelName}" not found or unsupported (404) in ${latencyMs}ms. Trying next candidate model...`);
+              break;
+            } else if (classified.type === 'TIMEOUT') {
+              console.warn(`⚠️ [AgriLLM] Model "${modelName}" timed out after ${attemptTimeoutMs}ms. Trying next candidate model...`);
+              break;
+            } else {
+              console.warn(`⚠️ [AgriLLM] Model "${modelName}" failed in ${latencyMs}ms: ${sanitizedErr}. Trying next candidate model...`);
+              break;
+            }
+          } finally {
+            clearTimeout(timeoutId);
+          }
+        }
+
+        if (response) {
+          break;
         }
       }
 
@@ -368,5 +432,9 @@ module.exports = {
   buildGeminiUserPrompt,
   validateAndCleanAgriResponse,
   classifyGeminiError,
-  sanitizeErrorMessage
+  sanitizeErrorMessage,
+  isModelQuotaExhausted,
+  markModelQuotaExhausted,
+  clearQuotaMemory
 };
+
